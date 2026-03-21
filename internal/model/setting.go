@@ -23,4 +23,5 @@ var DefaultSettings = map[string]string{
 	"webdav_auto_sync":                    "false",
 	"webdav_last_sync_time":               "",
 	"webdav_last_sync_type":               "",
+	"ccs_db_path":                         "",
 }

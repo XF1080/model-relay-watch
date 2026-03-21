@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Form, Button, Toast, Typography, Modal } from '@douyinfe/semi-ui';
-import { getSettings, updateSettings, testSyncConnection, syncUpload, syncDownload, getSyncStatus } from '../api/client';
+import { getSettings, updateSettings, testSyncConnection, syncUpload, syncDownload, getSyncStatus, listCCSProviders, syncCCSProviders } from '../api/client';
 import type { Settings as SettingsType, SyncStatus } from '../types';
 
 const { Text } = Typography;
@@ -138,6 +138,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('monitor');
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [syncLoading, setSyncLoading] = useState('');
+  const [ccsProviders, setCcsProviders] = useState<any[]>([]);
+  const [ccsLoading, setCcsLoading] = useState('');
 
   useEffect(() => { getSettings().then(setSettings); }, []);
   useEffect(() => { getSyncStatus().then(setSyncStatus).catch(() => {}); }, []);
@@ -199,13 +201,14 @@ export default function Settings() {
       {/* Header */}
       <div style={S.header}>
         <h1 style={S.h1}>设置</h1>
-        <div style={S.sub}>监控策略、测试参数和云端同步</div>
+        <div style={S.sub}>监控策略、测试参数、云端同步和数据源</div>
       </div>
 
       {/* Tab bar */}
       <div style={S.tabBar}>
         <button style={S.tab(activeTab === 'monitor')} onClick={() => setActiveTab('monitor')}>监控策略</button>
         <button style={S.tab(activeTab === 'sync')} onClick={() => setActiveTab('sync')}>云端同步</button>
+        <button style={S.tab(activeTab === 'ccs')} onClick={() => setActiveTab('ccs')}>数据源</button>
       </div>
 
       {/* ==================== Tab: 监控策略 ==================== */}
@@ -361,6 +364,85 @@ export default function Settings() {
           <div style={{ padding: '0 20px 12px', fontSize: 11, color: '#9ca3af' }}>
             请先保存 WebDAV 配置，再执行以上操作
           </div>
+        </div>
+      </>}
+
+      {/* ==================== Tab: 数据源 ==================== */}
+      {activeTab === 'ccs' && <>
+        <div style={S.section}>
+          <div style={S.sectionHeader}>
+            <div style={S.icon('#f5f3ff', '#8b5cf6')}>&#128279;</div> CC-Switch 数据源
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.formLabel}>CC-Switch 数据库路径</label>
+            <input type="text" style={S.input}
+              placeholder="C:/Users/你的用户名/.cc-switch/cc-switch.db"
+              value={settings.ccs_db_path || ''}
+              onChange={e => set('ccs_db_path', e.target.value)} />
+            <div style={S.formHint}>只读取 CC-Switch 的 Provider 数据，不会写入。保存后点击下方按钮同步。</div>
+          </div>
+        </div>
+
+        <div style={S.section}>
+          <div style={S.sectionHeader}>
+            <div style={S.icon('#eef2ff', '#6366f1')}>&#9889;</div> 同步操作
+          </div>
+          <div style={S.actionBar}>
+            <button style={S.btn} disabled={ccsLoading === 'preview'}
+              onClick={async () => {
+                setCcsLoading('preview');
+                try {
+                  const data = await listCCSProviders();
+                  setCcsProviders(data);
+                  if (data.length === 0) Toast.warning('未读取到 Provider');
+                } catch (e: any) { Toast.error(e.response?.data?.error || '读取失败'); }
+                finally { setCcsLoading(''); }
+              }}>
+              {ccsLoading === 'preview' ? '读取中...' : '预览 Providers'}
+            </button>
+            <button style={S.btnPrimary} disabled={ccsLoading === 'sync'}
+              onClick={async () => {
+                setCcsLoading('sync');
+                try {
+                  const res = await syncCCSProviders();
+                  Toast.success(`同步完成，新增 ${res.added} 个通道`);
+                  setCcsProviders([]);
+                } catch (e: any) { Toast.error(e.response?.data?.error || '同步失败'); }
+                finally { setCcsLoading(''); }
+              }}>
+              {ccsLoading === 'sync' ? '同步中...' : '同步到通道'}
+            </button>
+          </div>
+          <div style={{ padding: '0 20px 12px', fontSize: 11, color: '#9ca3af' }}>
+            请先保存数据库路径，再执行以上操作。已存在的通道（URL+Key 相同）不会重复添加。
+          </div>
+
+          {ccsProviders.length > 0 && (
+            <div style={{ padding: '0 20px 16px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#16192c', marginBottom: 8 }}>
+                读取到 {ccsProviders.length} 个 Provider:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {ccsProviders.map((p: any) => (
+                  <div key={p.id + p.app_type} style={{
+                    padding: '8px 12px', borderRadius: 8, background: '#f9fafb', border: '1px solid #f3f4f6',
+                    fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}>
+                    <div>
+                      <span style={{ fontWeight: 600, color: '#16192c' }}>{p.name}</span>
+                      <span style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: p.app_type === 'claude' ? '#fff7ed' : '#eef2ff', color: p.app_type === 'claude' ? '#d97706' : '#6366f1' }}>
+                        {p.app_type}
+                      </span>
+                      {p.is_current && <span style={{ marginLeft: 4, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: '#ecfdf5', color: '#22c55e' }}>当前</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>
+                      {p.base_url}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </>}
 

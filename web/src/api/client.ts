@@ -51,3 +51,9 @@ export const syncDownload = () =>
   api.post<{ message: string }>('/sync/download').then(r => r.data);
 export const getSyncStatus = () =>
   api.get<{ data: SyncStatus }>('/sync/status').then(r => r.data.data);
+
+// CC-Switch
+export const listCCSProviders = () =>
+  api.get<{ data: any[] }>('/ccs/providers').then(r => r.data.data || []);
+export const syncCCSProviders = () =>
+  api.post<{ message: string; added: number }>('/ccs/sync').then(r => r.data);

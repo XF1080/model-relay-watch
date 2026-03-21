@@ -68,6 +68,13 @@ func Setup(r *gin.Engine, frontendFS *embed.FS) {
 			sync.GET("/status", controller.GetSyncStatus)
 		}
 
+		// CC-Switch
+		ccs := api.Group("/ccs")
+		{
+			ccs.GET("/providers", controller.ListCCSProviders)
+			ccs.POST("/sync", controller.SyncCCSProviders)
+		}
+
 		// Dashboard
 		api.GET("/dashboard", controller.GetDashboard)
 		api.GET("/dashboard/heatmap", controller.GetHeatmap)
