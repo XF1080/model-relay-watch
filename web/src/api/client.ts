@@ -59,3 +59,7 @@ export const listCCSProviders = () =>
   api.get<{ data: any[] }>('/ccs/providers').then(r => r.data.data || []);
 export const syncCCSProviders = () =>
   api.post<{ message: string; added: number }>('/ccs/sync').then(r => r.data);
+
+// Token Stats (from CCS proxy_request_logs)
+export const getTokenStats = (range: string) =>
+  api.get<any>('/stats/tokens', { params: { range } }).then(r => r.data);

@@ -27,6 +27,13 @@ const icons = {
       <path d="M6 20v-4" />
     </svg>
   ),
+  coins: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+      <circle cx="8" cy="8" r="6" />
+      <path d="M18.09 10.37A6 6 0 1113.63 18.09" />
+      <path d="M7 6h2v4H7z" />
+    </svg>
+  ),
   gear: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
       <circle cx="12" cy="12" r="3" />
@@ -49,6 +56,7 @@ const navSections = [
     label: '分析',
     items: [
       { key: '/history', text: '测试历史', icon: icons.barChart },
+      { key: '/token-stats', text: '用量统计', icon: icons.coins },
     ],
   },
   {

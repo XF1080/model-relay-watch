@@ -80,6 +80,9 @@ func Setup(r *gin.Engine, frontendFS *embed.FS) {
 		api.GET("/dashboard", controller.GetDashboard)
 		api.GET("/dashboard/heatmap", controller.GetHeatmap)
 		api.GET("/dashboard/model-stats", controller.GetModelStats)
+
+		// Stats (token usage from CCS)
+		api.GET("/stats/tokens", controller.GetTokenStats)
 	}
 
 	// Serve frontend
