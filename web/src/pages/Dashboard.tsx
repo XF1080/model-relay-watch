@@ -108,7 +108,7 @@ const S = {
     transition: 'border-color 0.2s',
   } as React.CSSProperties,
   // Table grid (9 cols matching prototype)
-  gridCols: '28px 28px 160px 70px 110px 72px 52px 64px auto 54px',
+  gridCols: '56px 160px 70px 110px 72px 52px 64px auto 54px',
   tableHead: {
     display: 'grid', alignItems: 'center', padding: '0 20px', height: 36,
     background: '#fafafc', borderBottom: '1px solid #ececf1',
@@ -222,14 +222,12 @@ function ChannelRow({ m, rank, isBest, checked, onCheck }: { m: ModelStat; rank:
         onMouseEnter={e => { if (!expanded) e.currentTarget.style.background = '#fafafc'; }}
         onMouseLeave={e => { if (!expanded) e.currentTarget.style.background = isBest ? 'rgba(34,197,94,0.04)' : 'transparent'; }}
       >
-        {/* Checkbox */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { e.stopPropagation(); onCheck(m.model_id); }}>
-          <input type="checkbox" checked={checked} readOnly
-            style={{ width: 16, height: 16, borderRadius: 4, cursor: 'pointer', accentColor: '#6366f1' }} />
-        </div>
-        {/* # */}
-        <div>
+        {/* Checkbox + # */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div onClick={e => { e.stopPropagation(); onCheck(m.model_id); }}>
+            <input type="checkbox" checked={checked} readOnly
+              style={{ width: 15, height: 15, borderRadius: 4, cursor: 'pointer', accentColor: '#6366f1' }} />
+          </div>
           <span style={{
             display: 'inline-flex', width: 22, height: 22, borderRadius: 6,
             alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
@@ -405,15 +403,15 @@ function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck }: 
       {open && (
         <>
           <div style={{ ...S.tableHead, gridTemplateColumns: S.gridCols }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <input type="checkbox" style={{ width: 16, height: 16, borderRadius: 4, cursor: 'pointer', accentColor: '#6366f1' }}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input type="checkbox" style={{ width: 15, height: 15, borderRadius: 4, cursor: 'pointer', accentColor: '#6366f1' }}
                 checked={sorted.length > 0 && sorted.every(m => selected.has(m.model_id))}
                 onChange={() => {
                   const allChecked = sorted.every(m => selected.has(m.model_id));
                   sorted.forEach(m => { if (allChecked === selected.has(m.model_id)) onCheck(m.model_id); });
                 }} />
+              <span>#</span>
             </div>
-            <SortableHeader label="#" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="通道" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="状态" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="延迟" colKey="latency" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
