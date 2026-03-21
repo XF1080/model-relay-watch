@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings Redesign — Model Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --border: #ececf1;
+    --text-1: #1a1a2e;
+    --text-2: #6b7280;
+    --text-3: #9ca3af;
+    --accent: #6366f1;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f97316;
+    --radius: 14px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  body {
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text-1);
+    display: flex; min-height: 100vh;
+  }
+
+  /* Sidebar (simplified for prototype) */
+  .sidebar {
+    width: 220px; background: var(--card); border-right: 1px solid var(--border);
+    padding: 28px 0; flex-shrink: 0;
+  }
+  .sidebar .logo {
+    padding: 0 24px 28px; font-size: 17px; font-weight: 700;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-icon {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 16px; font-weight: 800;
+  }
+  .sidebar nav a {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 24px; font-size: 14px; font-weight: 500;
+    color: var(--text-2); text-decoration: none;
+    border-left: 3px solid transparent;
+  }
+  .sidebar nav a.active {
+    color: var(--accent); border-left-color: var(--accent);
+    background: #f0f0ff; font-weight: 600;
+  }
+  .nav-label {
+    padding: 18px 24px 6px; font-size: 11px; font-weight: 600;
+    color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  /* Main */
+  .main { flex: 1; padding: 32px 36px; overflow-y: auto; max-height: 100vh; }
+
+  /* Page header */
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 22px; font-weight: 800; }
+  .page-header .sub { font-size: 13px; color: var(--text-3); margin-top: 3px; }
+
+  /* ===== Tab bar (page-level, no container) ===== */
+  .tab-bar {
+    display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+  }
+  .tab-bar button {
+    padding: 10px 20px; font-size: 14px; font-weight: 600;
+    color: var(--text-3); background: none; border: none;
+    border-bottom: 2px solid transparent; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab-bar button:hover { color: var(--text-1); }
+  .tab-bar button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ===== Section: flat group with divider ===== */
+  .section {
+    background: var(--card); border-radius: var(--radius);
+    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .section-header {
+    padding: 16px 20px; font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-1);
+  }
+  .section-header .icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .section-header .icon.blue { background: #eef2ff; color: var(--accent); }
+  .section-header .icon.green { background: #ecfdf5; color: var(--green); }
+  .section-header .icon.orange { background: #fff7ed; color: var(--orange); }
+  .section-header .icon.purple { background: #f5f3ff; color: #8b5cf6; }
+
+  /* ===== Row: each setting item ===== */
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; border-bottom: 1px solid #f3f4f6;
+  }
+  .row:last-child { border-bottom: none; }
+  .row-label { font-size: 13px; font-weight: 500; color: var(--text-1); }
+  .row-hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .row-left { flex: 1; min-width: 0; }
+  .row-right { flex-shrink: 0; margin-left: 16px; }
+
+  /* Toggle switch */
+  .toggle {
+    width: 40px; height: 22px; border-radius: 11px;
+    background: #d1d5db; position: relative; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: ''; width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; position: absolute; top: 2px; left: 2px;
+    transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .toggle.on::after { transform: translateX(18px); }
+
+  /* Number input */
+  .num-input {
+    width: 80px; height: 32px; border: 1px solid var(--border);
+    border-radius: 8px; padding: 0 10px; font-size: 13px;
+    text-align: center; outline: none; font-family: inherit;
+  }
+  .num-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+
+  /* Text input */
+  .text-input {
+    width: 100%; height: 36px; border: 1px solid var(--border);
+    border-radius: 8px; padding: 0 12px; font-size: 13px;
+    outline: none; font-family: inherit;
+  }
+  .text-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+
+  /* ===== Form group (stacked label + input) ===== */
+  .form-group {
+    padding: 12px 20px; border-bottom: 1px solid #f3f4f6;
+  }
+  .form-group:last-child { border-bottom: none; }
+  .form-group label {
+    display: block; font-size: 13px; font-weight: 500;
+    color: var(--text-1); margin-bottom: 6px;
+  }
+  .form-group .form-hint {
+    font-size: 11px; color: var(--text-3); margin-top: 4px;
+  }
+
+  /* ===== Two-column form ===== */
+  .form-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  }
+  .form-grid .form-group {
+    border-right: 1px solid #f3f4f6;
+  }
+  .form-grid .form-group:nth-child(2n) { border-right: none; }
+
+  /* ===== Action bar ===== */
+  .action-bar {
+    display: flex; gap: 8px; padding: 16px 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Buttons */
+  .btn {
+    height: 34px; padding: 0 16px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card);
+    color: var(--text-1); transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { background: #f8f8fc; }
+  .btn.primary {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+    box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+  }
+  .btn.primary:hover { background: #5558e6; }
+  .btn.warn {
+    background: var(--orange); color: #fff; border-color: var(--orange);
+  }
+  .btn.warn:hover { background: #e8680f; }
+
+  /* Save bar (sticky) */
+  .save-bar {
+    position: sticky; bottom: 0; padding: 16px 0;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+  }
+  .save-bar .btn.primary {
+    height: 40px; padding: 0 32px; font-size: 14px; border-radius: 10px;
+  }
+
+  /* Sync status badge */
+  .sync-status {
+    padding: 10px 20px; font-size: 12px; color: var(--text-3);
+    background: #f9fafb; display: flex; align-items: center; gap: 12px;
+  }
+  .sync-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+    display: inline-block;
+  }
+
+  /* Tab content */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Textarea */
+  .textarea {
+    width: 100%; min-height: 60px; border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px;
+    outline: none; font-family: inherit; resize: vertical;
+  }
+  .textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">M</div> Model Monitor
+  </div>
+  <div class="nav-label">监控</div>
+  <nav>
+    <a href="#">模型比价</a>
+    <a href="#">通道管理</a>
+    <a href="#">全部模型</a>
+  </nav>
+  <div class="nav-label">分析</div>
+  <nav>
+    <a href="#">测试历史</a>
+  </nav>
+  <div class="nav-label">配置</div>
+  <nav>
+    <a href="#" class="active">设置</a>
+  </nav>
+</div>
+
+<!-- Main content -->
+<div class="main">
+  <div class="page-header">
+    <h1>设置</h1>
+    <div class="sub">监控策略、测试参数和云端同步</div>
+  </div>
+
+  <!-- Tab bar: page-level, no container -->
+  <div class="tab-bar">
+    <button class="active" onclick="switchTab('monitor')">监控策略</button>
+    <button onclick="switchTab('sync')">云端同步</button>
+  </div>
+
+  <!-- ==================== Tab 1: 监控策略 ==================== -->
+  <div id="tab-monitor" class="tab-content active">
+
+    <!-- 自动测试 + 测试配置: 合并为一个 section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon blue">⏱</div> 自动测试
+      </div>
+      <div class="row">
+        <div class="row-left">
+          <div class="row-label">启用自动测试</div>
+          <div class="row-hint">按设定间隔自动测试所有启用的通道和模型</div>
+        </div>
+        <div class="row-right"><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>测试间隔（分钟）</label>
+          <input type="number" class="num-input" value="10" style="width:100%">
+        </div>
+        <div class="form-group">
+          <label>请求超时（秒）</label>
+          <input type="number" class="num-input" value="30" style="width:100%">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Max Tokens</label>
+        <input type="number" class="num-input" value="16">
+      </div>
+    </div>
+
+    <!-- 自动禁用/启用 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon green">🛡</div> 自动禁用 / 启用
+      </div>
+      <div class="row">
+        <div class="row-left">
+          <div class="row-label">自动禁用异常模型</div>
+        </div>
+        <div class="row-right"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      </div>
+      <div class="row">
+        <div class="row-left">
+          <div class="row-label">自动启用恢复模型</div>
+        </div>
+        <div class="row-right"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      </div>
+      <div class="form-group">
+        <label>响应超时阈值（秒）</label>
+        <input type="number" class="num-input" value="10">
+        <div class="form-hint">响应时间超过此阈值的模型将被自动禁用</div>
+      </div>
+    </div>
+
+    <!-- 数据维护 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon orange">🗄</div> 数据维护
+      </div>
+      <div class="form-group">
+        <label>历史记录保留天数</label>
+        <input type="number" class="num-input" value="7">
+      </div>
+      <div class="form-group">
+        <label>禁用关键词（逗号分隔）</label>
+        <textarea class="textarea">insufficient_quota,authentication_error,invalid_api_key,billing_not_active,permission_error,account_deactivated</textarea>
+        <div class="form-hint">错误信息中包含以上关键词时将触发自动禁用</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Tab 2: 云端同步 ==================== -->
+  <div id="tab-sync" class="tab-content">
+
+    <!-- WebDAV 配置 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon purple">☁</div> WebDAV 连接
+      </div>
+      <div class="form-group">
+        <label>服务器地址</label>
+        <input type="text" class="text-input" placeholder="https://dav.jianguoyun.com/dav/">
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>WebDAV 账户</label>
+          <input type="text" class="text-input" placeholder="坚果云注册邮箱" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>WebDAV 密码</label>
+          <input type="password" class="text-input" placeholder="第三方应用密码" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>远程目录</label>
+          <input type="text" class="text-input" value="cc-switch-sync">
+        </div>
+        <div class="form-group">
+          <label>配置名称</label>
+          <input type="text" class="text-input" value="default">
+          <div class="form-hint">不同设备使用不同名称以区分数据源</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-left">
+          <div class="row-label">自动同步</div>
+          <div class="row-hint">数据变更时自动上传到云端（每 60 秒检查一次）</div>
+        </div>
+        <div class="row-right"><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+      </div>
+    </div>
+
+    <!-- 同步操作 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="icon blue">⚡</div> 同步操作
+      </div>
+      <div class="sync-status">
+        <span><span class="sync-dot"></span></span>
+        上次同步: 上传 于 2026/3/21 14:30:05 &nbsp;|&nbsp; 云端: 128.5 KB &nbsp;|&nbsp; 本地: 156.2 KB
+      </div>
+      <div class="action-bar">
+        <button class="btn">测试连接</button>
+        <button class="btn primary">上传到云端</button>
+        <button class="btn warn">从云端下载</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save bar -->
+  <div class="save-bar">
+    <button class="btn primary">保存设置</button>
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-bar button').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>
