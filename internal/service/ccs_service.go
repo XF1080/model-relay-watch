@@ -33,8 +33,12 @@ func ReadCCSProviders() ([]CCSProvider, error) {
 		return nil, fmt.Errorf("未配置 CC-Switch 数据库路径")
 	}
 
-	// Open read-only
-	ccsDB, err := gorm.Open(sqlite.Open(dbPath+"?mode=ro"), &gorm.Config{
+	// Normalize path separators
+	dbPath = strings.ReplaceAll(dbPath, "\\", "/")
+
+	// Open read-only with query params
+	dsn := dbPath + "?_pragma=query_only(1)"
+	ccsDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
@@ -57,6 +61,8 @@ func ReadCCSProviders() ([]CCSProvider, error) {
 	if err := ccsDB.Raw("SELECT id, app_type, name, settings_config, category, provider_type, is_current FROM providers").Scan(&raws).Error; err != nil {
 		return nil, fmt.Errorf("查询 providers 失败: %w", err)
 	}
+
+	log.Printf("[CCS] 从 %s 读取到 %d 条 provider 记录", dbPath, len(raws))
 
 	var result []CCSProvider
 	for _, r := range raws {
