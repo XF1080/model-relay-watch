@@ -158,10 +158,10 @@ function BatteryBar({ score }: { score: number }) {
 /* ─── Detail Panel Component ─────────────── */
 function DetailPanel({ m }: { m: ModelStat }) {
   const dims = [
-    { label: '可靠性', value: m.score_reliability, color: '#22c55e' },
-    { label: '延迟', value: m.score_latency, color: '#8b5cf6' },
-    { label: '吞吐量', value: m.score_throughput, color: '#06b6d4' },
-    { label: '网络', value: m.score_network, color: '#f59e0b' },
+    { label: '可靠性', value: Math.round(m.score_reliability * 100) / 100, color: '#22c55e' },
+    { label: '延迟', value: Math.round(m.score_latency * 100) / 100, color: '#8b5cf6' },
+    { label: '吞吐量', value: Math.round(m.score_throughput * 100) / 100, color: '#06b6d4' },
+    { label: '网络', value: Math.round(m.score_network * 100) / 100, color: '#f59e0b' },
   ];
   return (
     <div style={S.detailPanel}>
