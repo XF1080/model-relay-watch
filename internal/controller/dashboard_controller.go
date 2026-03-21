@@ -111,12 +111,16 @@ func GetModelStats(c *gin.Context) {
 	}
 
 	var stats []ModelStats
+	// Track which model entries have test data
+	seenEntries := make(map[uint]bool)
+
 	for modelName, rs := range grouped {
 		s := ModelStats{
 			ModelName:  modelName,
 			ModelID:    entryIDs[modelName],
 			TotalTests: len(rs),
 		}
+		seenEntries[s.ModelID] = true
 
 		if entry, ok := entryMap[s.ModelID]; ok && entry.Channel != nil {
 			s.ChannelName = entry.Channel.Name
@@ -190,6 +194,22 @@ func GetModelStats(c *gin.Context) {
 		totalNet := s.AvgDns + s.AvgTcp + s.AvgTls
 		s.ScoreNetwork = clamp(100-totalNet/5, 0, 100) // 500ms total net = 0
 
+		stats = append(stats, s)
+	}
+
+	// Add model entries that have no test data in the last 24h
+	for _, entry := range entries {
+		if seenEntries[entry.ID] {
+			continue
+		}
+		s := ModelStats{
+			ModelName: entry.ModelName,
+			ModelID:   entry.ID,
+		}
+		if entry.Channel != nil {
+			s.ChannelName = entry.Channel.Name
+			s.ChannelType = entry.Channel.Type
+		}
 		stats = append(stats, s)
 	}
 
