@@ -187,7 +187,7 @@ export default function Settings() {
             initValue={settings.webdav_auto_sync === 'true'} />
           <Text style={S.hint}>启用后，数据变更时自动上传到云端（每 60 秒检查一次）</Text>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center' }}>
             <Button htmlType="button" onClick={handleTestConnection}
               loading={syncLoading === 'test'}>
               测试连接
@@ -203,6 +203,7 @@ export default function Settings() {
               从云端下载
             </Button>
           </div>
+          <Text style={{ ...S.hint, marginTop: 8 }}>请先点击下方「保存设置」保存 WebDAV 配置，再执行以上操作</Text>
 
           {syncStatus && syncStatus.last_sync_time && (
             <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>

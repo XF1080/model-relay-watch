@@ -167,8 +167,8 @@ func DownloadSnapshot() error {
 	return nil
 }
 
-func GetSyncStatus() map[string]interface{} {
-	result := map[string]interface{}{
+func GetSyncStatus() map[string]any {
+	result := map[string]any{
 		"configured":     GetSetting("webdav_url") != "" && GetSetting("webdav_username") != "",
 		"auto_sync":      GetSettingBool("webdav_auto_sync"),
 		"last_sync_time": GetSetting("webdav_last_sync_time"),
@@ -246,8 +246,10 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
 	_, err = io.Copy(out, in)
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
 	return err
 }
