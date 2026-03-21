@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Toast, Popconfirm } from '@douyinfe/semi-ui';
-import { listModels, listChannels, testModel, deleteModel, updateModelStatus } from '../api/client';
+import { listModels, listChannels, testModel, testBatch, deleteModel, updateModelStatus } from '../api/client';
 import type { ModelEntry, Channel } from '../types';
 import { StatusEnabled, StatusManuallyDisabled, StatusAutoDisabled } from '../types';
 
@@ -20,7 +20,11 @@ const selectStyle: React.CSSProperties = {
   backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
 };
 
-const GRID = '1fr 120px 80px 100px 70px 80px 150px 170px';
+const checkboxStyle: React.CSSProperties = {
+  width: 16, height: 16, borderRadius: 4, cursor: 'pointer', accentColor: '#6366f1',
+};
+
+const GRID = '36px 1fr 120px 80px 100px 70px 80px 150px 170px';
 
 function statusInfo(status: number) {
   if (status === StatusEnabled) return { label: '正常', bg: 'rgba(34,197,94,0.08)', color: '#22c55e', dot: '#22c55e' };
@@ -36,6 +40,8 @@ export default function Models() {
   const [channelFilter, setChannelFilter] = useState<number>(0);
   const [statusFilter, setStatusFilter] = useState<number>(0);
   const [testingId, setTestingId] = useState<number>(0);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchTesting, setBatchTesting] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -46,7 +52,7 @@ export default function Models() {
   };
 
   useEffect(() => { listChannels().then(setChannels); }, []);
-  useEffect(() => { load(); }, [channelFilter, statusFilter]);
+  useEffect(() => { load(); setSelected(new Set()); }, [channelFilter, statusFilter]);
 
   const handleTest = async (id: number) => {
     setTestingId(id);
@@ -68,6 +74,36 @@ export default function Models() {
     load();
   };
 
+  const toggleSelect = (id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selected.size === models.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(models.map(m => m.id)));
+    }
+  };
+
+  const handleBatchTest = async () => {
+    if (selected.size === 0) return;
+    setBatchTesting(true);
+    try {
+      await testBatch(Array.from(selected));
+      Toast.success(`已启动 ${selected.size} 个模型的测试`);
+      setSelected(new Set());
+      setTimeout(() => { load(); setBatchTesting(false); }, 3000);
+    } catch (e: any) {
+      Toast.error(e.response?.data?.error || '批量测试启动失败');
+      setBatchTesting(false);
+    }
+  };
+
   return (
     <div style={S.page}>
       {/* Header */}
@@ -78,15 +114,29 @@ export default function Models() {
             共 <b style={{ color: '#6366f1' }}>{models.length}</b> 个模型
           </div>
         </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          style={{
-            height: 36, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: '#fff', border: '1px solid #ececf1', color: '#5a6078', transition: 'all 0.15s',
-          }}
-        >{loading ? '…' : '↻ 刷新'}</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {selected.size > 0 && (
+            <button
+              onClick={handleBatchTest}
+              disabled={batchTesting}
+              style={{
+                height: 36, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: '#6366f1', border: 'none', color: '#fff',
+                boxShadow: '0 3px 12px rgba(99,102,241,0.25)', transition: 'all 0.15s',
+              }}
+            >{batchTesting ? '测试中...' : `▶ 测试所选 (${selected.size})`}</button>
+          )}
+          <button
+            onClick={load}
+            disabled={loading}
+            style={{
+              height: 36, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: '#fff', border: '1px solid #ececf1', color: '#5a6078', transition: 'all 0.15s',
+            }}
+          >{loading ? '…' : '↻ 刷新'}</button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -104,6 +154,12 @@ export default function Models() {
           <option value={StatusAutoDisabled}>自动禁用</option>
           <option value={StatusManuallyDisabled}>手动禁用</option>
         </select>
+
+        {selected.size > 0 && (
+          <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, marginLeft: 'auto' }}>
+            已选 {selected.size} 项
+          </span>
+        )}
       </div>
 
       {/* Model Table */}
@@ -120,6 +176,11 @@ export default function Models() {
             fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.3px',
             textTransform: 'uppercase', background: '#fafafc', borderBottom: '1px solid #ececf1',
           }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <input type="checkbox" style={checkboxStyle}
+                checked={models.length > 0 && selected.size === models.length}
+                onChange={toggleAll} />
+            </div>
             <div>模型名称</div><div>通道</div><div>类型</div><div>状态</div>
             <div>成功率</div><div>延迟</div><div>最后测试</div><div>操作</div>
           </div>
@@ -128,6 +189,7 @@ export default function Models() {
           {models.map((m, idx) => {
             const sp = statusInfo(m.status);
             const successRate = m.test_count > 0 ? ((m.test_count - m.fail_count) / m.test_count * 100) : -1;
+            const isSelected = selected.has(m.id);
 
             return (
               <div
@@ -135,12 +197,18 @@ export default function Models() {
                 style={{
                   display: 'grid', gridTemplateColumns: GRID, columnGap: 12,
                   padding: '0 20px', minHeight: 50, alignItems: 'center',
-                  fontSize: 12, background: idx % 2 === 0 ? '#fff' : '#fafafc',
+                  fontSize: 12, background: isSelected ? '#f5f5ff' : idx % 2 === 0 ? '#fff' : '#fafafc',
                   borderBottom: '1px solid #f4f5f8', transition: 'background 0.1s',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5ff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#fafafc'; }}
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f5f5ff'; }}
+                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#fafafc'; }}
               >
+                {/* Checkbox */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <input type="checkbox" style={checkboxStyle}
+                    checked={isSelected}
+                    onChange={() => toggleSelect(m.id)} />
+                </div>
                 {/* Name */}
                 <div style={{ fontWeight: 600, color: '#16192c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {m.model_name}

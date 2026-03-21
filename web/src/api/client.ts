@@ -24,6 +24,7 @@ export const updateModelStatus = (id: number, status: number) => api.put(`/model
 export const testModel = (id: number) => api.post<{ success: boolean; response_ms: number; message: string; data: TestResult }>(`/test/model/${id}`).then(r => r.data);
 export const testChannel = (id: number) => api.post(`/test/channel/${id}`);
 export const testAll = () => api.post('/test/all');
+export const testBatch = (ids: number[]) => api.post('/test/batch', { ids });
 export const getTestStatus = () => api.get<{ running: boolean }>('/test/status').then(r => r.data.running);
 
 // History

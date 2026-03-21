@@ -43,6 +43,7 @@ func Setup(r *gin.Engine, frontendFS *embed.FS) {
 			t.POST("/model/:id", controller.TestSingleModel)
 			t.POST("/channel/:id", controller.TestChannel)
 			t.POST("/all", controller.TestAll)
+			t.POST("/batch", controller.TestBatch)
 			t.GET("/status", controller.TestStatus)
 		}
 

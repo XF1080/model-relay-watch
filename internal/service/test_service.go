@@ -336,3 +336,47 @@ func parseKeywords(s string) []string {
 	}
 	return result
 }
+
+func TestSelectedModels(ids []uint) error {
+	if !batchMutex.TryLock() {
+		return fmt.Errorf("batch test already in progress")
+	}
+	batchRunning = true
+	defer func() {
+		batchRunning = false
+		batchMutex.Unlock()
+	}()
+
+	autoDisable := GetSettingBool("auto_disable_enabled")
+	autoEnable := GetSettingBool("auto_enable_enabled")
+	thresholdSec := GetSettingFloat("channel_disable_threshold_seconds")
+	thresholdMs := int64(thresholdSec * 1000)
+	keywords := parseKeywords(GetSetting("disable_keywords"))
+
+	for _, id := range ids {
+		entry, err := GetModel(id)
+		if err != nil {
+			continue
+		}
+		var ch model.Channel
+		if err := model.DB.First(&ch, entry.ChannelID).Error; err != nil {
+			continue
+		}
+
+		result := TestSingleModel(entry, &ch)
+
+		if autoDisable && ch.AutoBan && entry.Status == model.ChannelStatusEnabled {
+			if shouldDisable, reason := shouldDisableModel(result, thresholdMs, keywords); shouldDisable {
+				UpdateModelStatus(entry.ID, model.ChannelStatusAutoDisabled)
+				log.Printf("[AUTO-DISABLE] model=%s channel=%s reason=%s", entry.ModelName, ch.Name, reason)
+			}
+		}
+		if autoEnable && result.Success && entry.Status == model.ChannelStatusAutoDisabled {
+			UpdateModelStatus(entry.ID, model.ChannelStatusEnabled)
+			log.Printf("[AUTO-ENABLE] model=%s channel=%s", entry.ModelName, ch.Name)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+	return nil
+}
