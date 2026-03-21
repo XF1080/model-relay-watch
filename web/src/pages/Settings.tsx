@@ -1,44 +1,154 @@
 import { useEffect, useState } from 'react';
-import { Form, Button, Toast, Typography, Modal, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Form, Button, Toast, Typography, Modal } from '@douyinfe/semi-ui';
 import { getSettings, updateSettings, testSyncConnection, syncUpload, syncDownload, getSyncStatus } from '../api/client';
 import type { Settings as SettingsType, SyncStatus } from '../types';
 
 const { Text } = Typography;
 
+/* ── styles ── */
 const S = {
-  page: { padding: '28px 32px', maxWidth: 700, margin: '0 auto', fontFamily: "Inter,-apple-system,'Segoe UI',sans-serif" } as React.CSSProperties,
-  card: {
-    background: '#fff', borderRadius: 14, padding: '22px 26px',
-    border: '1px solid #ececf1', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-    marginBottom: 16,
+  page: {
+    padding: '32px 36px', maxWidth: 740, margin: '0 auto',
+    fontFamily: "Inter,-apple-system,'Segoe UI',sans-serif",
   } as React.CSSProperties,
-  cardTitle: {
-    fontSize: 15, fontWeight: 700, color: '#16192c', marginBottom: 16,
-    paddingBottom: 12, borderBottom: '1px solid #ececf1',
+  header: { marginBottom: 24 } as React.CSSProperties,
+  h1: { fontSize: 22, fontWeight: 800, margin: 0, color: '#1a1a2e' } as React.CSSProperties,
+  sub: { fontSize: 13, color: '#9ca3af', marginTop: 3 } as React.CSSProperties,
+
+  /* tab bar */
+  tabBar: {
+    display: 'flex', gap: 0, borderBottom: '1px solid #ececf1', marginBottom: 24,
+  } as React.CSSProperties,
+  tab: (active: boolean) => ({
+    padding: '10px 20px', fontSize: 14, fontWeight: 600,
+    color: active ? '#6366f1' : '#9ca3af', background: 'none', border: 'none',
+    borderBottom: `2px solid ${active ? '#6366f1' : 'transparent'}`,
+    cursor: 'pointer', transition: 'all 0.15s',
+  }) as React.CSSProperties,
+
+  /* section */
+  section: {
+    background: '#fff', borderRadius: 14, border: '1px solid #ececf1',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16, overflow: 'hidden',
+  } as React.CSSProperties,
+  sectionHeader: {
+    padding: '16px 20px', fontSize: 14, fontWeight: 700, color: '#1a1a2e',
     display: 'flex', alignItems: 'center', gap: 8,
+    borderBottom: '1px solid #ececf1',
   } as React.CSSProperties,
-  hint: {
-    fontSize: 12, color: '#9ca3af', display: 'block', marginBottom: 12, marginTop: -4,
+  icon: (bg: string, fg: string) => ({
+    width: 28, height: 28, borderRadius: 8, display: 'flex',
+    alignItems: 'center', justifyContent: 'center', fontSize: 14,
+    background: bg, color: fg,
+  }) as React.CSSProperties,
+
+  /* row: label left, control right */
+  row: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '14px 20px', borderBottom: '1px solid #f3f4f6',
+  } as React.CSSProperties,
+  rowLabel: { fontSize: 13, fontWeight: 500, color: '#1a1a2e' } as React.CSSProperties,
+  rowHint: { fontSize: 11, color: '#9ca3af', marginTop: 2 } as React.CSSProperties,
+
+  /* form group */
+  formGroup: { padding: '12px 20px', borderBottom: '1px solid #f3f4f6' } as React.CSSProperties,
+  formLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: '#1a1a2e', marginBottom: 6 } as React.CSSProperties,
+  formHint: { fontSize: 11, color: '#9ca3af', marginTop: 4 } as React.CSSProperties,
+  formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 } as React.CSSProperties,
+
+  /* inputs */
+  input: {
+    width: '100%', height: 36, border: '1px solid #ececf1', borderRadius: 8,
+    padding: '0 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+  } as React.CSSProperties,
+  numInput: {
+    width: 80, height: 32, border: '1px solid #ececf1', borderRadius: 8,
+    padding: '0 10px', fontSize: 13, textAlign: 'center' as const, outline: 'none',
+    fontFamily: 'inherit',
+  } as React.CSSProperties,
+  textarea: {
+    width: '100%', minHeight: 60, border: '1px solid #ececf1', borderRadius: 8,
+    padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+    resize: 'vertical' as const,
+  } as React.CSSProperties,
+
+  /* toggle */
+  toggle: (on: boolean) => ({
+    width: 40, height: 22, borderRadius: 11, cursor: 'pointer',
+    background: on ? '#6366f1' : '#d1d5db', position: 'relative' as const,
+    transition: 'background 0.2s', flexShrink: 0,
+  }) as React.CSSProperties,
+  toggleDot: (on: boolean) => ({
+    width: 18, height: 18, borderRadius: '50%', background: '#fff',
+    position: 'absolute' as const, top: 2, left: on ? 20 : 2,
+    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+  }) as React.CSSProperties,
+
+  /* buttons */
+  btn: {
+    height: 34, padding: '0 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', border: '1px solid #ececf1', background: '#fff',
+    color: '#1a1a2e', transition: 'all 0.15s', display: 'inline-flex',
+    alignItems: 'center', gap: 6,
+  } as React.CSSProperties,
+  btnPrimary: {
+    height: 34, padding: '0 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', border: '1px solid #6366f1', background: '#6366f1',
+    color: '#fff', boxShadow: '0 2px 8px rgba(99,102,241,0.25)',
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+  } as React.CSSProperties,
+  btnWarn: {
+    height: 34, padding: '0 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', border: '1px solid #f97316', background: '#f97316',
+    color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6,
+  } as React.CSSProperties,
+
+  /* sync status bar */
+  syncStatus: {
+    padding: '10px 20px', fontSize: 12, color: '#9ca3af',
+    background: '#f9fafb', display: 'flex', alignItems: 'center', gap: 8,
+  } as React.CSSProperties,
+  syncDot: {
+    width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block',
+  } as React.CSSProperties,
+  actionBar: {
+    display: 'flex', gap: 8, padding: '16px 20px', borderTop: '1px solid #ececf1',
+  } as React.CSSProperties,
+
+  /* save bar */
+  saveBar: {
+    position: 'sticky' as const, bottom: 0, paddingTop: 16,
+    background: 'linear-gradient(to top, #f5f6fa 60%, transparent)',
   } as React.CSSProperties,
 };
 
+/* ── Toggle component ── */
+function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={S.toggle(value)} onClick={() => onChange(!value)}>
+      <div style={S.toggleDot(value)} />
+    </div>
+  );
+}
+
+/* ── Main component ── */
 export default function Settings() {
   const [settings, setSettings] = useState<SettingsType>({});
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('monitor');
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [syncLoading, setSyncLoading] = useState('');
 
   useEffect(() => { getSettings().then(setSettings); }, []);
   useEffect(() => { getSyncStatus().then(setSyncStatus).catch(() => {}); }, []);
 
-  const handleSave = async (values: Record<string, any>) => {
+  const set = (key: string, val: string) => setSettings(s => ({ ...s, [key]: val }));
+  const loaded = Object.keys(settings).length > 0;
+
+  const handleSave = async () => {
     setLoading(true);
     try {
-      const s: SettingsType = {};
-      for (const [k, v] of Object.entries(values)) {
-        s[k] = String(v);
-      }
-      await updateSettings(s);
+      await updateSettings(settings);
       Toast.success('设置已保存');
     } catch {
       Toast.error('保存失败');
@@ -51,16 +161,9 @@ export default function Settings() {
     setSyncLoading('test');
     try {
       const res = await testSyncConnection();
-      if (res.success) {
-        Toast.success('连接成功');
-      } else {
-        Toast.error('连接失败: ' + (res.error || '未知错误'));
-      }
-    } catch {
-      Toast.error('连接测试失败');
-    } finally {
-      setSyncLoading('');
-    }
+      res.success ? Toast.success('连接成功') : Toast.error('连接失败: ' + (res.error || '未知错误'));
+    } catch { Toast.error('连接测试失败'); }
+    finally { setSyncLoading(''); }
   };
 
   const handleUpload = async () => {
@@ -69,11 +172,8 @@ export default function Settings() {
       await syncUpload();
       Toast.success('上传成功');
       getSyncStatus().then(setSyncStatus);
-    } catch {
-      Toast.error('上传失败');
-    } finally {
-      setSyncLoading('');
-    }
+    } catch { Toast.error('上传失败'); }
+    finally { setSyncLoading(''); }
   };
 
   const handleDownload = () => {
@@ -86,166 +186,195 @@ export default function Settings() {
           await syncDownload();
           Toast.success('下载成功，页面即将刷新');
           setTimeout(() => window.location.reload(), 1500);
-        } catch {
-          Toast.error('下载失败');
-        } finally {
-          setSyncLoading('');
-        }
+        } catch { Toast.error('下载失败'); }
+        finally { setSyncLoading(''); }
       },
     });
   };
 
-  const loaded = Object.keys(settings).length > 0;
   if (!loaded) return null;
 
   return (
     <div style={S.page}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#16192c' }}>监控设置</h1>
-        <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>配置自动测试、禁用策略、数据维护和云同步</div>
+      {/* Header */}
+      <div style={S.header}>
+        <h1 style={S.h1}>设置</h1>
+        <div style={S.sub}>监控策略、测试参数和云端同步</div>
       </div>
 
-      <Form onSubmit={handleSave} initValues={settings}>
-        <Tabs type="line" style={{ background: '#fff', borderRadius: 14, border: '1px solid #ececf1', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      {/* Tab bar */}
+      <div style={S.tabBar}>
+        <button style={S.tab(activeTab === 'monitor')} onClick={() => setActiveTab('monitor')}>监控策略</button>
+        <button style={S.tab(activeTab === 'sync')} onClick={() => setActiveTab('sync')}>云端同步</button>
+      </div>
 
-          {/* ===== Tab 1: 监控策略 ===== */}
-          <TabPane tab="监控策略" itemKey="monitor" style={{ padding: '16px 22px' }}>
-            {/* Auto test */}
-            <div style={S.card}>
-              <div style={S.cardTitle}>
-                <span style={{ fontSize: 16 }}>⏱</span> 自动测试
-              </div>
-              <Form.Switch field="auto_test_enabled" label="启用自动测试"
-                initValue={settings.auto_test_enabled === 'true'}
-                onChange={(v: boolean) => setSettings(s => ({ ...s, auto_test_enabled: String(v) }))}
-              />
-              <Text style={S.hint}>启用后将按照设定的间隔自动测试所有启用的通道和模型</Text>
-              <Form.InputNumber field="auto_test_interval_minutes" label="测试间隔（分钟）"
-                initValue={Number(settings.auto_test_interval_minutes) || 10} min={1} />
+      {/* ==================== Tab: 监控策略 ==================== */}
+      {activeTab === 'monitor' && <>
+        {/* 自动测试 */}
+        <div style={S.section}>
+          <div style={S.sectionHeader}>
+            <div style={S.icon('#eef2ff', '#6366f1')}>⏱</div> 自动测试
+          </div>
+          <div style={S.row}>
+            <div>
+              <div style={S.rowLabel}>启用自动测试</div>
+              <div style={S.rowHint}>按设定间隔自动测试所有启用的通道和模型</div>
             </div>
-
-            {/* Auto disable */}
-            <div style={S.card}>
-              <div style={S.cardTitle}>
-                <span style={{ fontSize: 16 }}>🛡</span> 自动禁用 / 启用
-              </div>
-              <Form.Switch field="auto_disable_enabled" label="自动禁用异常模型"
-                initValue={settings.auto_disable_enabled === 'true'} />
-              <Form.Switch field="auto_enable_enabled" label="自动启用恢复模型"
-                initValue={settings.auto_enable_enabled === 'true'} />
-              <Form.InputNumber field="channel_disable_threshold_seconds" label="响应超时阈值（秒）"
-                initValue={Number(settings.channel_disable_threshold_seconds) || 10} min={1} step={1} />
-              <Text style={S.hint}>响应时间超过此阈值的模型将被自动禁用</Text>
+            <Toggle value={settings.auto_test_enabled === 'true'}
+              onChange={v => set('auto_test_enabled', String(v))} />
+          </div>
+          <div style={S.formGrid}>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>测试间隔（分钟）</label>
+              <input type="number" style={S.numInput} value={settings.auto_test_interval_minutes || '10'} min={1}
+                onChange={e => set('auto_test_interval_minutes', e.target.value)} />
             </div>
-
-            {/* Test config */}
-            <div style={S.card}>
-              <div style={S.cardTitle}>
-                <span style={{ fontSize: 16 }}>⚙</span> 测试配置
-              </div>
-              <Form.InputNumber field="test_request_timeout_seconds" label="请求超时（秒）"
-                initValue={Number(settings.test_request_timeout_seconds) || 30} min={5} />
-              <Form.InputNumber field="test_max_tokens" label="Max Tokens"
-                initValue={Number(settings.test_max_tokens) || 16} min={1} />
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>请求超时（秒）</label>
+              <input type="number" style={S.numInput} value={settings.test_request_timeout_seconds || '30'} min={5}
+                onChange={e => set('test_request_timeout_seconds', e.target.value)} />
             </div>
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.formLabel}>Max Tokens</label>
+            <input type="number" style={S.numInput} value={settings.test_max_tokens || '16'} min={1}
+              onChange={e => set('test_max_tokens', e.target.value)} />
+          </div>
+        </div>
 
-            {/* Data maintenance */}
-            <div style={S.card}>
-              <div style={S.cardTitle}>
-                <span style={{ fontSize: 16 }}>🗄</span> 数据维护
-              </div>
-              <Form.InputNumber field="history_retention_days" label="历史记录保留天数"
-                initValue={Number(settings.history_retention_days) || 7} min={1} />
-              <Form.TextArea field="disable_keywords" label="禁用关键词（逗号分隔）"
-                initValue={settings.disable_keywords}
-                placeholder="insufficient_quota,authentication_error,..."
-                autosize={{ minRows: 2 }}
-              />
-              <Text style={S.hint}>错误信息中包含以上关键词时将触发自动禁用</Text>
+        {/* 自动禁用/启用 */}
+        <div style={S.section}>
+          <div style={S.sectionHeader}>
+            <div style={S.icon('#ecfdf5', '#22c55e')}>🛡</div> 自动禁用 / 启用
+          </div>
+          <div style={S.row}>
+            <div style={S.rowLabel}>自动禁用异常模型</div>
+            <Toggle value={settings.auto_disable_enabled === 'true'}
+              onChange={v => set('auto_disable_enabled', String(v))} />
+          </div>
+          <div style={S.row}>
+            <div style={S.rowLabel}>自动启用恢复模型</div>
+            <Toggle value={settings.auto_enable_enabled === 'true'}
+              onChange={v => set('auto_enable_enabled', String(v))} />
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.formLabel}>响应超时阈值（秒）</label>
+            <input type="number" style={S.numInput} value={settings.channel_disable_threshold_seconds || '10'} min={1}
+              onChange={e => set('channel_disable_threshold_seconds', e.target.value)} />
+            <div style={S.formHint}>响应时间超过此阈值的模型将被自动禁用</div>
+          </div>
+        </div>
+
+        {/* 数据维护 */}
+        <div style={S.section}>
+          <div style={S.sectionHeader}>
+            <div style={S.icon('#fff7ed', '#f97316')}>🗄</div> 数据维护
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.formLabel}>历史记录保留天数</label>
+            <input type="number" style={S.numInput} value={settings.history_retention_days || '7'} min={1}
+              onChange={e => set('history_retention_days', e.target.value)} />
+          </div>
+          <div style={{ ...S.formGroup, borderBottom: 'none' }}>
+            <label style={S.formLabel}>禁用关键词（逗号分隔）</label>
+            <textarea style={S.textarea} value={settings.disable_keywords || ''}
+              onChange={e => set('disable_keywords', e.target.value)} />
+            <div style={S.formHint}>错误信息中包含以上关键词时将触发自动禁用</div>
+          </div>
+        </div>
+      </>}
+
+      {/* ==================== Tab: 云端同步 ==================== */}
+      {activeTab === 'sync' && <>
+        {/* WebDAV 连接 */}
+        <div style={S.section}>
+          <div style={S.sectionHeader}>
+            <div style={S.icon('#f5f3ff', '#8b5cf6')}>&#9729;</div> WebDAV 连接
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.formLabel}>服务器地址</label>
+            <input type="text" style={S.input} placeholder="https://dav.jianguoyun.com/dav/"
+              value={settings.webdav_url || ''} onChange={e => set('webdav_url', e.target.value)} />
+          </div>
+          <div style={S.formGrid}>
+            <div style={{ ...S.formGroup, borderRight: '1px solid #f3f4f6' }}>
+              <label style={S.formLabel}>WebDAV 账户</label>
+              <input type="text" style={S.input} placeholder="坚果云注册邮箱"
+                autoComplete="off" name="webdav_user_nofill"
+                value={settings.webdav_username || ''} onChange={e => set('webdav_username', e.target.value)} />
             </div>
-          </TabPane>
-
-          {/* ===== Tab 2: 云端同步 ===== */}
-          <TabPane tab="云端同步" itemKey="sync" style={{ padding: '16px 22px' }}>
-            <div style={S.card}>
-              <div style={S.cardTitle}>
-                <span style={{ fontSize: 16 }}>&#9729;</span> WebDAV 配置
-              </div>
-              <Text style={S.hint}>通过 WebDAV 同步数据到坚果云等云存储，支持多设备共享配置</Text>
-              <Form.Input field="webdav_url" label="WebDAV 地址"
-                placeholder="https://dav.jianguoyun.com/dav/"
-                initValue={settings.webdav_url} />
-              <Form.Input field="webdav_username" label="WebDAV 账户"
-                placeholder="坚果云注册邮箱"
-                initValue={settings.webdav_username}
-                autoComplete="off" />
-              <Form.Input field="webdav_password" label="WebDAV 密码"
-                mode="password"
-                placeholder="坚果云第三方应用密码"
-                initValue={settings.webdav_password}
-                autoComplete="new-password" />
-              <Form.Input field="webdav_remote_dir" label="远程目录"
-                placeholder="cc-switch-sync"
-                initValue={settings.webdav_remote_dir || 'cc-switch-sync'} />
-              <Form.Input field="webdav_profile_name" label="配置名称"
-                placeholder="default"
-                initValue={settings.webdav_profile_name || 'default'} />
-              <Text style={S.hint}>不同设备使用不同配置名称可区分数据源</Text>
-              <Form.Switch field="webdav_auto_sync" label="自动同步"
-                initValue={settings.webdav_auto_sync === 'true'} />
-              <Text style={S.hint}>启用后，数据变更时自动上传到云端（每 60 秒检查一次）</Text>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>WebDAV 密码</label>
+              <input type="password" style={S.input} placeholder="第三方应用密码"
+                autoComplete="new-password" name="webdav_pass_nofill"
+                value={settings.webdav_password || ''} onChange={e => set('webdav_password', e.target.value)} />
             </div>
-
-            <div style={S.card}>
-              <div style={S.cardTitle}>
-                <span style={{ fontSize: 16 }}>&#9881;</span> 同步操作
-              </div>
-              <Text style={S.hint}>请先保存上方 WebDAV 配置，再执行以下操作</Text>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                <Button htmlType="button" onClick={handleTestConnection}
-                  loading={syncLoading === 'test'}>
-                  测试连接
-                </Button>
-                <Button htmlType="button" onClick={handleUpload}
-                  loading={syncLoading === 'upload'}
-                  type="primary" theme="solid">
-                  上传到云端
-                </Button>
-                <Button htmlType="button" onClick={handleDownload}
-                  loading={syncLoading === 'download'}
-                  type="warning" theme="solid">
-                  从云端下载
-                </Button>
-              </div>
-
-              {syncStatus && syncStatus.last_sync_time && (
-                <div style={{ fontSize: 12, color: '#9ca3af', padding: '10px 14px', background: '#f9fafb', borderRadius: 8 }}>
-                  上次同步: {syncStatus.last_sync_type === 'upload' ? '上传' : '下载'}
-                  {' '}于 {new Date(syncStatus.last_sync_time).toLocaleString()}
-                  {syncStatus.remote_size != null && (
-                    <span> | 云端: {(syncStatus.remote_size / 1024).toFixed(1)} KB</span>
-                  )}
-                  {syncStatus.local_size != null && (
-                    <span> | 本地: {(syncStatus.local_size / 1024).toFixed(1)} KB</span>
-                  )}
-                </div>
-              )}
+          </div>
+          <div style={S.formGrid}>
+            <div style={{ ...S.formGroup, borderRight: '1px solid #f3f4f6' }}>
+              <label style={S.formLabel}>远程目录</label>
+              <input type="text" style={S.input} placeholder="cc-switch-sync"
+                value={settings.webdav_remote_dir || ''} onChange={e => set('webdav_remote_dir', e.target.value)} />
             </div>
-          </TabPane>
-        </Tabs>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>配置名称</label>
+              <input type="text" style={S.input} placeholder="default"
+                value={settings.webdav_profile_name || ''} onChange={e => set('webdav_profile_name', e.target.value)} />
+              <div style={S.formHint}>不同设备使用不同名称以区分数据源</div>
+            </div>
+          </div>
+          <div style={{ ...S.row, borderBottom: 'none' }}>
+            <div>
+              <div style={S.rowLabel}>自动同步</div>
+              <div style={S.rowHint}>数据变更时自动上传到云端（每 60 秒检查一次）</div>
+            </div>
+            <Toggle value={settings.webdav_auto_sync === 'true'}
+              onChange={v => set('webdav_auto_sync', String(v))} />
+          </div>
+        </div>
 
-        <Button
-          htmlType="submit"
-          loading={loading}
+        {/* 同步操作 */}
+        <div style={S.section}>
+          <div style={S.sectionHeader}>
+            <div style={S.icon('#eef2ff', '#6366f1')}>&#9889;</div> 同步操作
+          </div>
+          {syncStatus && syncStatus.last_sync_time && (
+            <div style={S.syncStatus}>
+              <span style={S.syncDot} />
+              上次同步: {syncStatus.last_sync_type === 'upload' ? '上传' : '下载'}
+              {' '}于 {new Date(syncStatus.last_sync_time).toLocaleString()}
+              {syncStatus.remote_size != null && <span>&nbsp;|&nbsp;云端: {(syncStatus.remote_size / 1024).toFixed(1)} KB</span>}
+              {syncStatus.local_size != null && <span>&nbsp;|&nbsp;本地: {(syncStatus.local_size / 1024).toFixed(1)} KB</span>}
+            </div>
+          )}
+          <div style={S.actionBar}>
+            <button style={S.btn} onClick={handleTestConnection} disabled={syncLoading === 'test'}>
+              {syncLoading === 'test' ? '测试中...' : '测试连接'}
+            </button>
+            <button style={S.btnPrimary} onClick={handleUpload} disabled={syncLoading === 'upload'}>
+              {syncLoading === 'upload' ? '上传中...' : '上传到云端'}
+            </button>
+            <button style={S.btnWarn} onClick={handleDownload} disabled={syncLoading === 'download'}>
+              {syncLoading === 'download' ? '下载中...' : '从云端下载'}
+            </button>
+          </div>
+          <div style={{ padding: '0 20px 12px', fontSize: 11, color: '#9ca3af' }}>
+            请先保存 WebDAV 配置，再执行以上操作
+          </div>
+        </div>
+      </>}
+
+      {/* Save bar */}
+      <div style={S.saveBar}>
+        <Button onClick={handleSave} loading={loading}
           style={{
-            marginTop: 16, height: 40, padding: '0 32px', background: '#6366f1', border: 'none',
+            height: 40, padding: '0 32px', background: '#6366f1', border: 'none',
             color: '#fff', fontWeight: 700, fontSize: 14, borderRadius: 10,
             boxShadow: '0 3px 12px rgba(99,102,241,0.25)', cursor: 'pointer',
-          }}
-        >
+          }}>
           保存设置
         </Button>
-      </Form>
+      </div>
     </div>
   );
 }
