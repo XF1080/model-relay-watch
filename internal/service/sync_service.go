@@ -35,7 +35,7 @@ func getRemotePath() string {
 	dir := GetSetting("webdav_remote_dir")
 	profile := GetSetting("webdav_profile_name")
 	if dir == "" {
-		dir = "model-monitor"
+		dir = "cc-switch-sync"
 	}
 	if profile == "" {
 		profile = "default"
@@ -47,7 +47,7 @@ func getRemoteDir() string {
 	dir := GetSetting("webdav_remote_dir")
 	profile := GetSetting("webdav_profile_name")
 	if dir == "" {
-		dir = "model-monitor"
+		dir = "cc-switch-sync"
 	}
 	if profile == "" {
 		profile = "default"

@@ -18,7 +18,7 @@ var DefaultSettings = map[string]string{
 	"webdav_url":                          "",
 	"webdav_username":                     "",
 	"webdav_password":                     "",
-	"webdav_remote_dir":                   "model-monitor",
+	"webdav_remote_dir":                   "cc-switch-sync",
 	"webdav_profile_name":                 "default",
 	"webdav_auto_sync":                    "false",
 	"webdav_last_sync_time":               "",
