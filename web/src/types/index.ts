@@ -62,6 +62,18 @@ export interface Settings {
   [key: string]: string;
 }
 
+export interface SyncStatus {
+  configured: boolean;
+  auto_sync: boolean;
+  last_sync_time: string;
+  last_sync_type: string;
+  profile_name: string;
+  remote_size?: number;
+  remote_modified?: string;
+  local_size?: number;
+  local_modified?: string;
+}
+
 export const StatusEnabled = 1;
 export const StatusManuallyDisabled = 2;
 export const StatusAutoDisabled = 3;

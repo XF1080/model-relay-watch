@@ -58,6 +58,15 @@ func Setup(r *gin.Engine, frontendFS *embed.FS) {
 		api.GET("/settings", controller.GetSettings)
 		api.PUT("/settings", controller.UpdateSettings)
 
+		// Sync (WebDAV)
+		sync := api.Group("/sync")
+		{
+			sync.POST("/test", controller.TestSyncConnection)
+			sync.POST("/upload", controller.SyncUpload)
+			sync.POST("/download", controller.SyncDownload)
+			sync.GET("/status", controller.GetSyncStatus)
+		}
+
 		// Dashboard
 		api.GET("/dashboard", controller.GetDashboard)
 		api.GET("/dashboard/heatmap", controller.GetHeatmap)

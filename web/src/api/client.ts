@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Channel, ModelEntry, TestResult, DashboardData, Settings } from '../types';
+import type { Channel, ModelEntry, TestResult, DashboardData, Settings, SyncStatus } from '../types';
 
 const api = axios.create({ baseURL: '/api/v1' });
 
@@ -40,3 +40,13 @@ export const updateSettings = (s: Settings) => api.put('/settings', s);
 export const getDashboard = () => api.get<DashboardData>('/dashboard').then(r => r.data);
 export const getHeatmap = () => api.get<{ data: any[] }>('/dashboard/heatmap').then(r => r.data.data || []);
 export const getModelStats = () => api.get<{ data: any[] }>('/dashboard/model-stats').then(r => r.data.data || []);
+
+// Sync (WebDAV)
+export const testSyncConnection = () =>
+  api.post<{ success: boolean; error?: string; message?: string }>('/sync/test').then(r => r.data);
+export const syncUpload = () =>
+  api.post<{ message: string }>('/sync/upload').then(r => r.data);
+export const syncDownload = () =>
+  api.post<{ message: string }>('/sync/download').then(r => r.data);
+export const getSyncStatus = () =>
+  api.get<{ data: SyncStatus }>('/sync/status').then(r => r.data.data);

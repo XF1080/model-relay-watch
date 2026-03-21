@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Form, Button, Toast, Typography } from '@douyinfe/semi-ui';
-import { getSettings, updateSettings } from '../api/client';
-import type { Settings as SettingsType } from '../types';
+import { Form, Button, Toast, Typography, Modal } from '@douyinfe/semi-ui';
+import { getSettings, updateSettings, testSyncConnection, syncUpload, syncDownload, getSyncStatus } from '../api/client';
+import type { Settings as SettingsType, SyncStatus } from '../types';
 
 const { Text } = Typography;
 
@@ -25,8 +25,11 @@ const S = {
 export default function Settings() {
   const [settings, setSettings] = useState<SettingsType>({});
   const [loading, setLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [syncLoading, setSyncLoading] = useState('');
 
   useEffect(() => { getSettings().then(setSettings); }, []);
+  useEffect(() => { getSyncStatus().then(setSyncStatus).catch(() => {}); }, []);
 
   const handleSave = async (values: Record<string, any>) => {
     setLoading(true);
@@ -45,6 +48,54 @@ export default function Settings() {
   };
 
   const loaded = Object.keys(settings).length > 0;
+
+  const handleTestConnection = async () => {
+    setSyncLoading('test');
+    try {
+      const res = await testSyncConnection();
+      if (res.success) {
+        Toast.success('连接成功');
+      } else {
+        Toast.error('连接失败: ' + (res.error || '未知错误'));
+      }
+    } catch {
+      Toast.error('连接测试失败');
+    } finally {
+      setSyncLoading('');
+    }
+  };
+
+  const handleUpload = async () => {
+    setSyncLoading('upload');
+    try {
+      await syncUpload();
+      Toast.success('上传成功');
+      getSyncStatus().then(setSyncStatus);
+    } catch {
+      Toast.error('上传失败');
+    } finally {
+      setSyncLoading('');
+    }
+  };
+
+  const handleDownload = () => {
+    Modal.confirm({
+      title: '确认下载',
+      content: '下载将覆盖本地数据库，当前数据将自动备份。确定继续？',
+      onOk: async () => {
+        setSyncLoading('download');
+        try {
+          await syncDownload();
+          Toast.success('下载成功，页面即将刷新');
+          setTimeout(() => window.location.reload(), 1500);
+        } catch {
+          Toast.error('下载失败');
+        } finally {
+          setSyncLoading('');
+        }
+      },
+    });
+  };
 
   return (
     <div style={S.page}>
@@ -107,6 +158,61 @@ export default function Settings() {
             autosize={{ minRows: 2 }}
           />
           <Text style={S.hint}>错误信息中包含以上关键词时将触发自动禁用</Text>
+        </div>
+
+        {/* Cloud sync card */}
+        <div style={S.card}>
+          <div style={S.cardTitle}>
+            <span style={{ fontSize: 16 }}>&#9729;</span> 云端同步 (WebDAV)
+          </div>
+          <Text style={S.hint}>通过 WebDAV 同步数据到坚果云等云存储，支持多设备共享配置</Text>
+          <Form.Input field="webdav_url" label="WebDAV 地址"
+            placeholder="https://dav.jianguoyun.com/dav/"
+            initValue={settings.webdav_url} />
+          <Form.Input field="webdav_username" label="用户名"
+            placeholder="your@email.com"
+            initValue={settings.webdav_username} />
+          <Form.Input field="webdav_password" label="密码（应用密码）"
+            mode="password"
+            placeholder="坚果云第三方应用密码"
+            initValue={settings.webdav_password} />
+          <Form.Input field="webdav_remote_dir" label="远程目录"
+            placeholder="model-monitor"
+            initValue={settings.webdav_remote_dir || 'model-monitor'} />
+          <Form.Input field="webdav_profile_name" label="配置名称"
+            placeholder="default"
+            initValue={settings.webdav_profile_name || 'default'} />
+          <Text style={S.hint}>不同设备使用不同配置名称可区分数据源</Text>
+          <Form.Switch field="webdav_auto_sync" label="自动同步"
+            initValue={settings.webdav_auto_sync === 'true'} />
+          <Text style={S.hint}>启用后，数据变更时自动上传到云端（每 60 秒检查一次）</Text>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <Button htmlType="button" onClick={handleTestConnection}
+              loading={syncLoading === 'test'}>
+              测试连接
+            </Button>
+            <Button htmlType="button" onClick={handleUpload}
+              loading={syncLoading === 'upload'}
+              type="primary" theme="solid">
+              上传到云端
+            </Button>
+            <Button htmlType="button" onClick={handleDownload}
+              loading={syncLoading === 'download'}
+              type="warning" theme="solid">
+              从云端下载
+            </Button>
+          </div>
+
+          {syncStatus && syncStatus.last_sync_time && (
+            <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>
+              上次同步: {syncStatus.last_sync_type === 'upload' ? '上传' : '下载'}
+              {' '}于 {new Date(syncStatus.last_sync_time).toLocaleString()}
+              {syncStatus.remote_size != null && (
+                <span> | 云端: {(syncStatus.remote_size / 1024).toFixed(1)} KB</span>
+              )}
+            </div>
+          )}
         </div>
 
         <Button

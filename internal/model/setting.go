@@ -15,4 +15,12 @@ var DefaultSettings = map[string]string{
 	"test_max_tokens":                     "16",
 	"history_retention_days":              "7",
 	"disable_keywords":                    "insufficient_quota,authentication_error,invalid_api_key,billing_not_active,permission_error,account_deactivated",
+	"webdav_url":                          "",
+	"webdav_username":                     "",
+	"webdav_password":                     "",
+	"webdav_remote_dir":                   "model-monitor",
+	"webdav_profile_name":                 "default",
+	"webdav_auto_sync":                    "false",
+	"webdav_last_sync_time":               "",
+	"webdav_last_sync_type":               "",
 }

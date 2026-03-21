@@ -54,6 +54,7 @@ func main() {
 	defer cancel()
 	service.StartMonitor(ctx)
 	service.StartCleanupJob(ctx)
+	service.StartAutoSync(ctx)
 
 	// Graceful shutdown
 	go func() {
