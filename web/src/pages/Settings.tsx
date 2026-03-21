@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Form, Button, Toast, Typography, Modal } from '@douyinfe/semi-ui';
-import { getSettings, updateSettings, testSyncConnection, syncUpload, syncDownload, getSyncStatus, listCCSProviders, syncCCSProviders } from '../api/client';
+import { getSettings, updateSettings, testSyncConnection, syncUpload, syncDownload, getSyncStatus, detectCCSPath, listCCSProviders, syncCCSProviders } from '../api/client';
 import type { Settings as SettingsType, SyncStatus } from '../types';
 
 const { Text } = Typography;
@@ -375,10 +375,23 @@ export default function Settings() {
           </div>
           <div style={S.formGroup}>
             <label style={S.formLabel}>CC-Switch 数据库路径</label>
-            <input type="text" style={S.input}
-              placeholder="C:/Users/你的用户名/.cc-switch/cc-switch.db"
-              value={settings.ccs_db_path || ''}
-              onChange={e => set('ccs_db_path', e.target.value)} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="text" style={{ ...S.input, flex: 1 }}
+                placeholder="C:/Users/你的用户名/.cc-switch/cc-switch.db"
+                value={settings.ccs_db_path || ''}
+                onChange={e => set('ccs_db_path', e.target.value)} />
+              <button style={S.btn} onClick={async () => {
+                try {
+                  const res = await detectCCSPath();
+                  if (res.found && res.path) {
+                    set('ccs_db_path', res.path);
+                    Toast.success('已检测到: ' + res.path);
+                  } else {
+                    Toast.warning('未找到 CC-Switch 数据库');
+                  }
+                } catch { Toast.error('检测失败'); }
+              }}>自动检测</button>
+            </div>
             <div style={S.formHint}>只读取 CC-Switch 的 Provider 数据，不会写入。保存后点击下方按钮同步。</div>
           </div>
         </div>

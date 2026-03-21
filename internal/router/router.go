@@ -71,6 +71,7 @@ func Setup(r *gin.Engine, frontendFS *embed.FS) {
 		// CC-Switch
 		ccs := api.Group("/ccs")
 		{
+			ccs.GET("/detect", controller.DetectCCSPath)
 			ccs.GET("/providers", controller.ListCCSProviders)
 			ccs.POST("/sync", controller.SyncCCSProviders)
 		}

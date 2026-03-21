@@ -53,6 +53,8 @@ export const getSyncStatus = () =>
   api.get<{ data: SyncStatus }>('/sync/status').then(r => r.data.data);
 
 // CC-Switch
+export const detectCCSPath = () =>
+  api.get<{ found: boolean; path?: string }>('/ccs/detect').then(r => r.data);
 export const listCCSProviders = () =>
   api.get<{ data: any[] }>('/ccs/providers').then(r => r.data.data || []);
 export const syncCCSProviders = () =>
