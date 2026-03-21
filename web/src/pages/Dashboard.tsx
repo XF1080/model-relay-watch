@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { getDashboard, getModelStats, testAll, testModel, getTestStatus } from '../api/client';
+import { getDashboard, getModelStats, testAll, testModel, testBatch, getTestStatus } from '../api/client';
 import type { DashboardData } from '../types';
 
 /* ─── Types ──────────────────────────────── */
@@ -108,7 +108,7 @@ const S = {
     transition: 'border-color 0.2s',
   } as React.CSSProperties,
   // Table grid (9 cols matching prototype)
-  gridCols: '28px 160px 70px 110px 72px 52px 64px auto 54px',
+  gridCols: '28px 28px 160px 70px 110px 72px 52px 64px auto 54px',
   tableHead: {
     display: 'grid', alignItems: 'center', padding: '0 20px', height: 36,
     background: '#fafafc', borderBottom: '1px solid #ececf1',
@@ -202,7 +202,7 @@ function DetailPanel({ m }: { m: ModelStat }) {
 }
 
 /* ─── Channel Row Component ──────────────── */
-function ChannelRow({ m, rank, isBest }: { m: ModelStat; rank: number; isBest: boolean }) {
+function ChannelRow({ m, rank, isBest, checked, onCheck }: { m: ModelStat; rank: number; isBest: boolean; checked: boolean; onCheck: (id: number) => void }) {
   const [expanded, setExpanded] = useState(false);
   const score = overallScore(m);
   const sc = scoreColor(score);
@@ -222,6 +222,12 @@ function ChannelRow({ m, rank, isBest }: { m: ModelStat; rank: number; isBest: b
         onMouseEnter={e => { if (!expanded) e.currentTarget.style.background = '#fafafc'; }}
         onMouseLeave={e => { if (!expanded) e.currentTarget.style.background = isBest ? 'rgba(34,197,94,0.04)' : 'transparent'; }}
       >
+        {/* Checkbox */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { e.stopPropagation(); onCheck(m.model_id); }}>
+          <input type="checkbox" checked={checked} readOnly
+            style={{ width: 16, height: 16, borderRadius: 4, cursor: 'pointer', accentColor: '#6366f1' }} />
+        </div>
         {/* # */}
         <div>
           <span style={{
@@ -355,11 +361,13 @@ function SortableHeader({ label, colKey, sortKey, sortDir, onSort }: {
 }
 
 /* ─── Model Group Component ──────────────── */
-function ModelGroupCard({ group, sortKey, sortDir, onSort }: {
+function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck }: {
   group: ModelGroup;
   sortKey: SortKey;
   sortDir: SortDir;
   onSort: (key: SortKey) => void;
+  selected: Set<number>;
+  onCheck: (id: number) => void;
 }) {
   const [open, setOpen] = useState(true);
   const sorted = sortChannels(group.channels, sortKey, sortDir);
@@ -397,6 +405,14 @@ function ModelGroupCard({ group, sortKey, sortDir, onSort }: {
       {open && (
         <>
           <div style={{ ...S.tableHead, gridTemplateColumns: S.gridCols }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <input type="checkbox" style={{ width: 16, height: 16, borderRadius: 4, cursor: 'pointer', accentColor: '#6366f1' }}
+                checked={sorted.length > 0 && sorted.every(m => selected.has(m.model_id))}
+                onChange={() => {
+                  const allChecked = sorted.every(m => selected.has(m.model_id));
+                  sorted.forEach(m => { if (allChecked === selected.has(m.model_id)) onCheck(m.model_id); });
+                }} />
+            </div>
             <SortableHeader label="#" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="通道" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="状态" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
@@ -408,7 +424,8 @@ function ModelGroupCard({ group, sortKey, sortDir, onSort }: {
             <SortableHeader label="评分" colKey="score" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           </div>
           {sorted.map((m, i) => (
-            <ChannelRow key={m.model_id} m={m} rank={i} isBest={m === best && (m.success_rate > 0 || m.total_tests === 0)} />
+            <ChannelRow key={m.model_id} m={m} rank={i} isBest={m === best && (m.success_rate > 0 || m.total_tests === 0)}
+              checked={selected.has(m.model_id)} onCheck={onCheck} />
           ))}
         </>
       )}
@@ -539,6 +556,15 @@ export default function Dashboard() {
   const [modelFilter, setModelFilter] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('score');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const toggleCheck = (id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -610,22 +636,23 @@ export default function Dashboard() {
   const activeFilters = (channelFilter ? 1 : 0) + (modelFilter ? 1 : 0);
   const clearAllFilters = () => { setChannelFilter(''); setModelFilter(''); };
 
-  // Scoped test: tests only visible (filtered) models, or all if no filter
+  // Scoped test: selected > filtered > all
   const handleTestAll = async () => {
-    const visibleModels = groups.flatMap(g => g.channels);
-    const isFiltered = !!(channelFilter || modelFilter);
-    // Give immediate visual feedback before waiting for requests
     setTesting(true);
     try {
-      if (!isFiltered) {
-        testAll(); // fire-and-forget for global test
-        Toast.success('已开始全量测试');
+      if (selected.size > 0) {
+        await testBatch(Array.from(selected));
+        Toast.success(`已启动 ${selected.size} 个模型的测试`);
+        setSelected(new Set());
+      } else if (channelFilter || modelFilter) {
+        const visibleModels = groups.flatMap(g => g.channels);
+        await testBatch(visibleModels.map(m => m.model_id));
+        Toast.success(`已启动 ${visibleModels.length} 个模型的测试`);
       } else {
-        Toast.success(`正在对 ${visibleModels.length} 个模型发起测试…`);
-        Promise.allSettled(visibleModels.map(m => testModel(m.model_id))); // non-blocking
+        testAll();
+        Toast.success('已开始全量测试');
       }
     } catch (e: any) {
-      setTesting(false);
       Toast.error(e.response?.data?.error || '失败');
     }
   };
@@ -634,8 +661,10 @@ export default function Dashboard() {
   const visibleModelCount = groups.flatMap(g => g.channels).length;
   const testBtnLabel = testing
     ? '测试中...'
-    : (channelFilter || modelFilter)
-      ? `▶ 测试筛选结果 (${visibleModelCount})`
+    : selected.size > 0
+      ? `▶ 测试所选 (${selected.size})`
+      : (channelFilter || modelFilter)
+        ? `▶ 测试筛选结果 (${visibleModelCount})`
       : '▶ 全量测试';
 
   return (
@@ -643,7 +672,7 @@ export default function Dashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>模型比价监控</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>模型监控</h1>
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>快速找到每个模型最快的中转通道</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -781,7 +810,7 @@ export default function Dashboard() {
           {models.length === 0 ? '暂无数据，请先发现模型并执行测试' : '未找到匹配的模型'}
         </div>
       ) : (
-        groups.map(g => <ModelGroupCard key={g.model} group={g} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />)
+        groups.map(g => <ModelGroupCard key={g.model} group={g} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} selected={selected} onCheck={toggleCheck} />)
       )}
     </div>
   );

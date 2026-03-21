@@ -40,7 +40,7 @@ const navSections = [
   {
     label: '监控',
     items: [
-      { key: '/', text: '模型比价', icon: icons.grid },
+      { key: '/', text: '模型监控', icon: icons.grid },
       { key: '/channels', text: '通道管理', icon: icons.activity },
       { key: '/models', text: '全部模型', icon: icons.box },
     ],
