@@ -2,6 +2,7 @@ export interface Channel {
   id: number;
   name: string;
   type: string; // openai, anthropic
+  tag: string;  // claude, openai, gemini, deepseek, codex, other
   base_url: string;
   api_key_hint?: string;
   status: number;

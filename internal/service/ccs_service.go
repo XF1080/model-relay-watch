@@ -144,15 +144,27 @@ func SyncCCSProviders() (int, error) {
 			continue
 		}
 
-		// Determine channel type
+		// Determine channel type and tag
 		chType := model.ChannelTypeOpenAI
-		if p.AppType == "claude" {
+		chTag := "other"
+		switch {
+		case p.AppType == "claude":
 			chType = model.ChannelTypeAnthropic
+			chTag = "claude"
+		case strings.Contains(strings.ToLower(p.AppType), "codex"):
+			chTag = "codex"
+		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "gemini") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "google"):
+			chTag = "gemini"
+		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "deepseek"):
+			chTag = "deepseek"
+		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "openai") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "chatgpt"):
+			chTag = "openai"
 		}
 
 		ch := model.Channel{
 			Name:    fmt.Sprintf("%s (%s)", p.Name, p.AppType),
 			Type:    chType,
+			Tag:     chTag,
 			BaseURL: p.BaseURL,
 			APIKey:  p.APIKey,
 			Status:  model.ChannelStatusEnabled,

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Button, Space, Modal, Form, Toast, Spin, Dropdown } from '@douyinfe/semi-ui';
-import { IconPlus, IconSearch, IconRefresh, IconDelete, IconEdit, IconPlayCircle, IconMore, IconLink, IconKey, IconClock } from '@douyinfe/semi-icons';
+import { IconPlus, IconSearch, IconRefresh, IconDelete, IconEdit, IconPlayCircle, IconMore, IconLink, IconKey, IconClock, IconChevronDown, IconChevronRight } from '@douyinfe/semi-icons';
 import { listChannels, createChannel, updateChannel, deleteChannel, discoverModels, updateChannelStatus, testChannel } from '../api/client';
 import type { Channel } from '../types';
 import { StatusEnabled, StatusManuallyDisabled } from '../types';
@@ -9,6 +9,17 @@ const typeMap: Record<string, { label: string; color: string }> = {
   openai: { label: 'Chat Completions', color: '#10a37f' },
   responses: { label: 'Responses API', color: '#6e56cf' },
   anthropic: { label: 'Anthropic', color: '#d97706' },
+};
+
+/* ─── Tag configuration (ordered) ──── */
+const TAG_ORDER = ['claude', 'openai', 'gemini', 'deepseek', 'codex', 'other'] as const;
+const tagConfig: Record<string, { label: string; color: string; icon: string }> = {
+  claude:   { label: 'Claude',   color: '#d97706', icon: 'C' },
+  openai:   { label: 'OpenAI',   color: '#10a37f', icon: 'O' },
+  gemini:   { label: 'Gemini',   color: '#4285f4', icon: 'G' },
+  deepseek: { label: 'DeepSeek', color: '#5b6ee1', icon: 'D' },
+  codex:    { label: 'Codex',    color: '#6e56cf', icon: 'X' },
+  other:    { label: '其他',     color: '#9ca3af', icon: '?' },
 };
 
 function healthPercent(ch: Channel) {
@@ -54,6 +65,7 @@ export default function Channels() {
   const [discovering, setDiscovering] = useState<number>(0);
   const [testingId, setTestingId] = useState<number>(0);
   const [openDropdownId, setOpenDropdownId] = useState<number>(0);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const load = () => {
     setLoading(true);
@@ -61,6 +73,23 @@ export default function Channels() {
   };
 
   useEffect(() => { load(); }, []);
+
+  /* Group channels by tag */
+  const grouped = useMemo(() => {
+    const map: Record<string, Channel[]> = {};
+    for (const ch of channels) {
+      const tag = ch.tag || 'other';
+      if (!map[tag]) map[tag] = [];
+      map[tag].push(ch);
+    }
+    // Return in defined order, only tags that have channels
+    return TAG_ORDER
+      .filter(t => map[t] && map[t].length > 0)
+      .map(t => ({ tag: t, channels: map[t] }));
+  }, [channels]);
+
+  const toggleCollapse = (tag: string) =>
+    setCollapsed(s => ({ ...s, [tag]: !s[tag] }));
 
   const handleSubmit = async (values: any) => {
     try {
@@ -129,135 +158,58 @@ export default function Channels() {
         </Space>
       </div>
 
-      {/* Channel Cards */}
+      {/* Channel Cards - grouped by tag */}
       {loading && channels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>
       ) : channels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>暂无通道，点击右上角添加</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {channels.map(ch => {
-            const tp = typeMap[ch.type] || typeMap.openai;
-            const pct = healthPercent(ch);
-            const isEnabled = ch.status === StatusEnabled;
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {grouped.map(({ tag, channels: groupChannels }) => {
+            const cfg = tagConfig[tag] || tagConfig.other;
+            const isCollapsed = collapsed[tag];
+            const enabledCount = groupChannels.filter(c => c.status === StatusEnabled).length;
 
             return (
-              <div key={ch.id} style={{
-                background: '#fff', borderRadius: 14, border: '1px solid #ececf1',
-                padding: '18px 24px', transition: 'box-shadow 0.2s',
-                opacity: isEnabled ? 1 : 0.6, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'; }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-              >
-                {/* Row 1: Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 10, height: 10, borderRadius: '50%',
-                      background: isEnabled ? '#22c55e' : '#bbb',
-                      boxShadow: isEnabled ? '0 0 8px rgba(34,197,94,0.4)' : 'none',
-                    }} />
-                    <span style={{ fontSize: 17, fontWeight: 700, color: '#111' }}>{ch.name}</span>
-                    <span style={{
-                      fontSize: 11, padding: '2px 10px', borderRadius: 10, fontWeight: 600,
-                      background: tp.color + '15', color: tp.color, border: `1px solid ${tp.color}30`,
-                    }}>{tp.label}</span>
-                    {!isEnabled && (
-                      <span style={{
-                        fontSize: 11, padding: '2px 10px', borderRadius: 10,
-                        background: '#f5f5f5', color: '#999', fontWeight: 500,
-                      }}>{ch.status === StatusManuallyDisabled ? '手动禁用' : '自动禁用'}</span>
-                    )}
-                  </div>
-                  <Space>
-                    <Button size="small" icon={<IconSearch />} loading={discovering === ch.id}
-                      onClick={() => handleDiscover(ch.id)}
-                      style={{ borderRadius: 8, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>
-                      发现模型
-                    </Button>
-                    <Button size="small" icon={<IconPlayCircle />} loading={testingId === ch.id}
-                      onClick={() => handleTest(ch.id)}
-                      style={{ borderRadius: 8, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>
-                      测试
-                    </Button>
-                    <Button size="small" icon={<IconEdit />}
-                      onClick={() => { setEditing(ch); setModalVisible(true); }}
-                      style={{ borderRadius: 8, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>
-                      编辑
-                    </Button>
-                    <Dropdown
-                      trigger="click"
-                      position="bottomRight"
-                      visible={openDropdownId === ch.id}
-                      onVisibleChange={v => setOpenDropdownId(v ? ch.id : 0)}
-                      render={
-                        <Dropdown.Menu>
-                          <Dropdown.Item onClick={() => { setOpenDropdownId(0); handleToggleStatus(ch); }}>{isEnabled ? '禁用通道' : '启用通道'}</Dropdown.Item>
-                          <Dropdown.Divider />
-                          <Dropdown.Item icon={<IconDelete />} type="danger" onClick={() => {
-                            setOpenDropdownId(0);
-                            Modal.confirm({
-                              title: '确认删除',
-                              content: `删除「${ch.name}」及其所有模型和测试数据？此操作不可恢复。`,
-                              okText: '删除', cancelText: '取消',
-                              okButtonProps: { type: 'danger' } as any,
-                              onOk: () => deleteChannel(ch.id).then(load),
-                            });
-                          }}>删除</Dropdown.Item>
-                        </Dropdown.Menu>
-                      }>
-                      <Button size="small" theme="borderless" icon={<IconMore />} style={{ color: '#999' }} />
-                    </Dropdown>
-                  </Space>
+              <div key={tag}>
+                {/* Group header */}
+                <div
+                  onClick={() => toggleCollapse(tag)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, marginBottom: isCollapsed ? 0 : 10,
+                    cursor: 'pointer', userSelect: 'none', padding: '4px 0',
+                  }}
+                >
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 800, color: '#fff', background: cfg.color,
+                  }}>{cfg.icon}</div>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{cfg.label}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, color: '#9ca3af', background: '#f3f4f6',
+                    padding: '2px 8px', borderRadius: 8,
+                  }}>{enabledCount}/{groupChannels.length}</span>
+                  {isCollapsed
+                    ? <IconChevronRight size="small" style={{ color: '#bbb' }} />
+                    : <IconChevronDown size="small" style={{ color: '#bbb' }} />}
                 </div>
 
-                {/* Row 2: URL + Key */}
-                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12, marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#666' }}>
-                    <IconLink size="small" style={{ color: '#bbb' }} />
-                    <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{ch.base_url}</span>
+                {/* Channel cards */}
+                {!isCollapsed && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 4 }}>
+                    {groupChannels.map(ch => (
+                      <ChannelCard
+                        key={ch.id} ch={ch}
+                        discovering={discovering} testingId={testingId}
+                        openDropdownId={openDropdownId} setOpenDropdownId={setOpenDropdownId}
+                        onDiscover={handleDiscover} onTest={handleTest}
+                        onEdit={ch => { setEditing(ch); setModalVisible(true); }}
+                        onToggleStatus={handleToggleStatus} onDelete={id => deleteChannel(id).then(load)}
+                      />
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#999' }}>
-                    <IconKey size="small" style={{ color: '#bbb' }} />
-                    <span>{ch.api_key_hint || '未设置'}</span>
-                  </div>
-                </div>
-
-                {/* Row 3: Stats */}
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                  gap: 16, paddingTop: 14, borderTop: '1px solid #ececf1',
-                }}>
-                  <StatItem label="模型健康" value={
-                    ch.model_count ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: '#333' }}>{ch.healthy_count}/{ch.model_count}</span>
-                        <HealthBar pct={pct} />
-                      </div>
-                    ) : <span style={{ color: '#ccc' }}>无模型</span>
-                  } />
-                  <StatItem label="平均延迟" value={
-                    ch.avg_response_time_ms ? (
-                      <span style={{
-                        fontWeight: 700, fontSize: 14,
-                        color: ch.avg_response_time_ms > 5000 ? '#ef4444' : ch.avg_response_time_ms > 2000 ? '#eab308' : '#22c55e',
-                      }}>{Math.round(ch.avg_response_time_ms)} ms</span>
-                    ) : <span style={{ color: '#ccc' }}>-</span>
-                  } />
-                  <StatItem label="最后测试" value={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#666' }}>
-                      <IconClock size="small" style={{ color: '#bbb' }} />
-                      <span>{relativeTime(ch.last_test_time)}</span>
-                    </div>
-                  } />
-                  <StatItem label="自动禁用" value={
-                    <span style={{ color: ch.auto_ban ? '#22c55e' : '#999', fontWeight: 600 }}>
-                      {ch.auto_ban ? '✓ 已开启' : '未开启'}
-                    </span>
-                  } />
-                  {ch.remark && <StatItem label="备注" value={<span style={{ color: '#999' }}>{ch.remark}</span>} />}
-                </div>
+                )}
               </div>
             );
           })}
@@ -280,22 +232,28 @@ export default function Channels() {
         width={520}
       >
         <Form onSubmit={handleSubmit}
-          initValues={editing || { type: 'openai', base_url: 'http://127.0.0.1:8317', auto_ban: true, priority: 0 }}
+          initValues={editing || { type: 'openai', tag: '', base_url: 'http://127.0.0.1:8317', auto_ban: true, priority: 0 }}
           labelPosition="top">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <Form.Input field="name" label="通道名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="如: Claude 官方" />
+            <Form.Select field="tag" label="分组" style={{ width: '100%' }}>
+              <Form.Select.Option value="">自动识别</Form.Select.Option>
+              {TAG_ORDER.map(t => (
+                <Form.Select.Option key={t} value={t}>{tagConfig[t].label}</Form.Select.Option>
+              ))}
+            </Form.Select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <Form.Select field="type" label="协议类型" style={{ width: '100%' }}>
               <Form.Select.Option value="openai">OpenAI Chat Completions</Form.Select.Option>
               <Form.Select.Option value="responses">OpenAI Responses API</Form.Select.Option>
               <Form.Select.Option value="anthropic">Anthropic Messages</Form.Select.Option>
             </Form.Select>
+            <Form.InputNumber field="priority" label="优先级" style={{ width: '100%' }} />
           </div>
           <Form.Input field="base_url" label="Base URL" rules={[{ required: true, message: '请输入 URL' }]} placeholder="http://127.0.0.1:8317" />
           <Form.Input field="api_key" label="API Key" mode="password" placeholder={editing ? '留空不修改' : '请输入 API Key'} rules={editing ? [] : [{ required: true, message: '请输入 Key' }]} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-            <Form.Input field="test_model" label="测试模型" placeholder="留空使用第一个模型" />
-            <Form.InputNumber field="priority" label="优先级" style={{ width: '100%' }} />
-          </div>
+          <Form.Input field="test_model" label="测试模型" placeholder="留空使用第一个模型" />
           <Form.Switch field="auto_ban" label="自动禁用" />
           <p style={{ fontSize: 12, color: '#9ca3af', margin: '-6px 0 12px 0', lineHeight: 1.5 }}>
             开启后，当模型连续响应失败或超时（超过设置阈値）时，系统自动将该模型临时禁用，等导通后自动恢复。
@@ -304,6 +262,140 @@ export default function Channels() {
           <button id="channel-form-submit" type="submit" style={{ display: 'none' }} />
         </Form>
       </Modal>
+    </div>
+  );
+}
+
+/* ─── Channel Card (extracted) ──── */
+function ChannelCard({ ch, discovering, testingId, openDropdownId, setOpenDropdownId, onDiscover, onTest, onEdit, onToggleStatus, onDelete }: {
+  ch: Channel;
+  discovering: number; testingId: number;
+  openDropdownId: number; setOpenDropdownId: (id: number) => void;
+  onDiscover: (id: number) => void; onTest: (id: number) => void;
+  onEdit: (ch: Channel) => void; onToggleStatus: (ch: Channel) => void;
+  onDelete: (id: number) => void;
+}) {
+  const tp = typeMap[ch.type] || typeMap.openai;
+  const pct = healthPercent(ch);
+  const isEnabled = ch.status === StatusEnabled;
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14, border: '1px solid #ececf1',
+      padding: '18px 24px', transition: 'box-shadow 0.2s',
+      opacity: isEnabled ? 1 : 0.6, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
+    >
+      {/* Row 1: Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 10, height: 10, borderRadius: '50%',
+            background: isEnabled ? '#22c55e' : '#bbb',
+            boxShadow: isEnabled ? '0 0 8px rgba(34,197,94,0.4)' : 'none',
+          }} />
+          <span style={{ fontSize: 17, fontWeight: 700, color: '#111' }}>{ch.name}</span>
+          <span style={{
+            fontSize: 11, padding: '2px 10px', borderRadius: 10, fontWeight: 600,
+            background: tp.color + '15', color: tp.color, border: `1px solid ${tp.color}30`,
+          }}>{tp.label}</span>
+          {!isEnabled && (
+            <span style={{
+              fontSize: 11, padding: '2px 10px', borderRadius: 10,
+              background: '#f5f5f5', color: '#999', fontWeight: 500,
+            }}>{ch.status === StatusManuallyDisabled ? '手动禁用' : '自动禁用'}</span>
+          )}
+        </div>
+        <Space>
+          <Button size="small" icon={<IconSearch />} loading={discovering === ch.id}
+            onClick={() => onDiscover(ch.id)}
+            style={{ borderRadius: 8, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>
+            发现模型
+          </Button>
+          <Button size="small" icon={<IconPlayCircle />} loading={testingId === ch.id}
+            onClick={() => onTest(ch.id)}
+            style={{ borderRadius: 8, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>
+            测试
+          </Button>
+          <Button size="small" icon={<IconEdit />}
+            onClick={() => onEdit(ch)}
+            style={{ borderRadius: 8, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>
+            编辑
+          </Button>
+          <Dropdown
+            trigger="click"
+            position="bottomRight"
+            visible={openDropdownId === ch.id}
+            onVisibleChange={v => setOpenDropdownId(v ? ch.id : 0)}
+            render={
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={() => { setOpenDropdownId(0); onToggleStatus(ch); }}>{isEnabled ? '禁用通道' : '启用通道'}</Dropdown.Item>
+                <Dropdown.Divider />
+                <Dropdown.Item icon={<IconDelete />} type="danger" onClick={() => {
+                  setOpenDropdownId(0);
+                  Modal.confirm({
+                    title: '确认删除',
+                    content: `删除「${ch.name}」及其所有模型和测试数据？此操作不可恢复。`,
+                    okText: '删除', cancelText: '取消',
+                    okButtonProps: { type: 'danger' } as any,
+                    onOk: () => onDelete(ch.id),
+                  });
+                }}>删除</Dropdown.Item>
+              </Dropdown.Menu>
+            }>
+            <Button size="small" theme="borderless" icon={<IconMore />} style={{ color: '#999' }} />
+          </Dropdown>
+        </Space>
+      </div>
+
+      {/* Row 2: URL + Key */}
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#666' }}>
+          <IconLink size="small" style={{ color: '#bbb' }} />
+          <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{ch.base_url}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#999' }}>
+          <IconKey size="small" style={{ color: '#bbb' }} />
+          <span>{ch.api_key_hint || '未设置'}</span>
+        </div>
+      </div>
+
+      {/* Row 3: Stats */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: 16, paddingTop: 14, borderTop: '1px solid #ececf1',
+      }}>
+        <StatItem label="模型健康" value={
+          ch.model_count ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#333' }}>{ch.healthy_count}/{ch.model_count}</span>
+              <HealthBar pct={pct} />
+            </div>
+          ) : <span style={{ color: '#ccc' }}>无模型</span>
+        } />
+        <StatItem label="平均延迟" value={
+          ch.avg_response_time_ms ? (
+            <span style={{
+              fontWeight: 700, fontSize: 14,
+              color: ch.avg_response_time_ms > 5000 ? '#ef4444' : ch.avg_response_time_ms > 2000 ? '#eab308' : '#22c55e',
+            }}>{Math.round(ch.avg_response_time_ms)} ms</span>
+          ) : <span style={{ color: '#ccc' }}>-</span>
+        } />
+        <StatItem label="最后测试" value={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#666' }}>
+            <IconClock size="small" style={{ color: '#bbb' }} />
+            <span>{relativeTime(ch.last_test_time)}</span>
+          </div>
+        } />
+        <StatItem label="自动禁用" value={
+          <span style={{ color: ch.auto_ban ? '#22c55e' : '#999', fontWeight: 600 }}>
+            {ch.auto_ban ? '已开启' : '未开启'}
+          </span>
+        } />
+        {ch.remark && <StatItem label="备注" value={<span style={{ color: '#999' }}>{ch.remark}</span>} />}
+      </div>
     </div>
   );
 }

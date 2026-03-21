@@ -5,9 +5,29 @@ import (
 	"model-monitor/internal/service"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
+
+// autoDetectTag guesses a channel tag from its name and base_url.
+func autoDetectTag(name, baseURL string) string {
+	s := strings.ToLower(name + " " + baseURL)
+	switch {
+	case strings.Contains(s, "claude") || strings.Contains(s, "anthropic"):
+		return "claude"
+	case strings.Contains(s, "gemini") || strings.Contains(s, "google"):
+		return "gemini"
+	case strings.Contains(s, "deepseek"):
+		return "deepseek"
+	case strings.Contains(s, "codex"):
+		return "codex"
+	case strings.Contains(s, "openai") || strings.Contains(s, "chatgpt"):
+		return "openai"
+	default:
+		return "other"
+	}
+}
 
 func ListChannels(c *gin.Context) {
 	channels, err := service.GetAllChannels()
@@ -39,6 +59,9 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 	ch.Status = model.ChannelStatusEnabled
+	if ch.Tag == "" {
+		ch.Tag = autoDetectTag(ch.Name, ch.BaseURL)
+	}
 	if err := service.CreateChannel(&ch); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -58,6 +81,7 @@ func UpdateChannel(c *gin.Context) {
 	var input struct {
 		Name      *string `json:"name"`
 		Type      *string `json:"type"`
+		Tag       *string `json:"tag"`
 		BaseURL   *string `json:"base_url"`
 		APIKey    *string `json:"api_key"`
 		AutoBan   *bool   `json:"auto_ban"`
@@ -75,6 +99,9 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if input.Type != nil {
 		existing.Type = *input.Type
+	}
+	if input.Tag != nil {
+		existing.Tag = *input.Tag
 	}
 	if input.BaseURL != nil {
 		existing.BaseURL = *input.BaseURL
