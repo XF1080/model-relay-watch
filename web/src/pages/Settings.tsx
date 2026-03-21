@@ -403,8 +403,10 @@ export default function Settings() {
           <div style={S.actionBar}>
             <button style={S.btn} disabled={ccsLoading === 'preview'}
               onClick={async () => {
+                if (!settings.ccs_db_path) { Toast.warning('请先填写数据库路径'); return; }
                 setCcsLoading('preview');
                 try {
+                  await updateSettings({ ccs_db_path: settings.ccs_db_path });
                   const data = await listCCSProviders();
                   setCcsProviders(data);
                   if (data.length === 0) Toast.warning('未读取到 Provider');
@@ -415,8 +417,10 @@ export default function Settings() {
             </button>
             <button style={S.btnPrimary} disabled={ccsLoading === 'sync'}
               onClick={async () => {
+                if (!settings.ccs_db_path) { Toast.warning('请先填写数据库路径'); return; }
                 setCcsLoading('sync');
                 try {
+                  await updateSettings({ ccs_db_path: settings.ccs_db_path });
                   const res = await syncCCSProviders();
                   Toast.success(`同步完成，新增 ${res.added} 个通道`);
                   setCcsProviders([]);
