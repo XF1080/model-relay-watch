@@ -215,7 +215,7 @@ function ChannelRow({ m, rank, isBest, checked, onCheck }: { m: ModelStat; rank:
           ...S.tableRow,
           gridTemplateColumns: S.gridCols,
           background: expanded ? '#fafafc' : isBest ? 'rgba(34,197,94,0.04)' : 'transparent',
-          borderLeft: isBest ? '3px solid #22c55e' : '3px solid transparent',
+          boxShadow: isBest ? 'inset 3px 0 0 #22c55e' : 'none',
           opacity: isOffline ? 0.5 : 1,
         }}
         onClick={() => setExpanded(!expanded)}
