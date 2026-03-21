@@ -1,0 +1,19 @@
+import React from 'react';
+import PropTypes from 'prop-types';
+import '@douyinfe/semi-foundation/lib/cjs/button/button.css';
+import BaseComponent, { BaseProps } from '../_base/baseComponent';
+export interface SplitButtonGroupProps extends BaseProps {
+    'aria-label'?: React.AriaAttributes['aria-label'];
+}
+export default class SplitButtonGroup extends BaseComponent<SplitButtonGroupProps> {
+    containerRef: React.RefObject<HTMLDivElement>;
+    mutationObserver: MutationObserver | null;
+    static propTypes: {
+        style: PropTypes.Requireable<object>;
+        className: PropTypes.Requireable<string>;
+        'aria-label': PropTypes.Requireable<string>;
+    };
+    componentDidMount(): void;
+    componentWillUnmount(): void;
+    render(): React.JSX.Element;
+}

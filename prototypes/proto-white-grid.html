@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Monitor — 卡片方格</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #f8f9fc;
+            --card: #ffffff;
+            --border: #e9ebf0;
+            --text-1: #16192c;
+            --text-2: #646e83;
+            --text-3: #a2aab8;
+            --accent: #5046e5;
+            --green: #10b981;
+            --purple: #7c3aed;
+            --cyan: #0ea5e9;
+            --amber: #f59e0b;
+            --orange: #f97316;
+            --red: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* ─── Left Rail ─────────────── */
+        .rail {
+            width: 64px;
+            flex-shrink: 0;
+            background: var(--card);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            gap: 8px;
+        }
+
+        .rail-logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent), #818cf8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 800;
+            font-size: 18px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 14px rgba(80, 70, 229, 0.3);
+        }
+
+        .rail-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-3);
+            border: none;
+            background: none;
+        }
+
+        .rail-btn:hover {
+            background: #f2f3f8;
+            color: var(--text-2);
+        }
+
+        .rail-btn.active {
+            background: rgba(80, 70, 229, 0.08);
+            color: var(--accent);
+        }
+
+        .rail-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .rail-spacer {
+            flex: 1;
+        }
+
+        /* ─── Main ─────────────────── */
+        .main {
+            flex: 1;
+            padding: 32px 40px;
+            overflow-y: auto;
+            max-width: 1280px;
+        }
+
+        .page-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 28px;
+        }
+
+        .page-head h1 {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-1);
+            letter-spacing: -0.3px;
+        }
+
+        .page-head .sub {
+            font-size: 13px;
+            color: var(--text-3);
+            margin-top: 4px;
+        }
+
+        .head-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            height: 36px;
+            padding: 0 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: none;
+            transition: all 0.15s;
+        }
+
+        .btn-white {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .btn-white:hover {
+            border-color: #d0d0d8;
+        }
+
+        .btn-accent {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(80, 70, 229, 0.25);
+        }
+
+        .btn-accent:hover {
+            background: #4338ca;
+        }
+
+        /* ─── Stats Row ──────────── */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .stat {
+            background: var(--card);
+            border-radius: 14px;
+            padding: 16px 18px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: box-shadow 0.2s;
+        }
+
+        .stat:hover {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+        }
+
+        .stat-ring {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .stat-ring-inner {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .stat-text .lbl {
+            font-size: 11px;
+            color: var(--text-3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .stat-text .val {
+            font-size: 20px;
+            font-weight: 800;
+            margin-top: 2px;
+        }
+
+        /* ─── Model Grid ─────────── */
+        .model-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 16px;
+        }
+
+        .m-card {
+            background: var(--card);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 22px;
+            transition: all 0.25s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .m-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
+            border-color: rgba(80, 70, 229, 0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Top stripe */
+        .m-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .m-card.excellent::before {
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+        }
+
+        .m-card.good::before {
+            background: linear-gradient(90deg, var(--amber), var(--orange));
+        }
+
+        .m-card.poor::before {
+            background: linear-gradient(90deg, var(--red), #f87171);
+        }
+
+        .m-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .m-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-1);
+        }
+
+        .m-badges {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .m-badge {
+            font-size: 10px;
+            padding: 3px 10px;
+            border-radius: 6px;
+            background: #f3f4f8;
+            color: var(--text-2);
+            font-weight: 600;
+        }
+
+        .m-score-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 18px;
+        }
+
+        .m-score-pill .lbl {
+            font-size: 10px;
+            font-weight: 600;
+            opacity: 0.7;
+        }
+
+        /* Metric mini-bars */
+        .m-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .mm {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .mm-head {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+        }
+
+        .mm-head .l {
+            color: var(--text-3);
+            font-weight: 600;
+        }
+
+        .mm-head .v {
+            color: var(--text-2);
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mm-track {
+            height: 6px;
+            border-radius: 4px;
+            background: #f1f2f6;
+            overflow: hidden;
+        }
+
+        .mm-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Details row */
+        .m-details {
+            display: flex;
+            gap: 10px;
+            font-size: 11px;
+            color: var(--text-3);
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid #f3f4f8;
+            font-weight: 500;
+            flex-wrap: wrap;
+        }
+
+        .m-details span {
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: #f8f9fc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Icon rail -->
+    <aside class="rail">
+        <div class="rail-logo">M</div>
+        <button class="rail-btn active" title="仪表盘">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+        </button>
+        <button class="rail-btn" title="通道管理">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+        </button>
+        <button class="rail-btn" title="模型列表">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                    d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+            </svg>
+        </button>
+        <button class="rail-btn" title="测试历史">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20V10" />
+                <path d="M18 20V4" />
+                <path d="M6 20v-4" />
+            </svg>
+        </button>
+        <div class="rail-spacer"></div>
+        <button class="rail-btn" title="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06" />
+            </svg>
+        </button>
+    </aside>
+
+    <main class="main">
+        <div class="page-head">
+            <div>
+                <h1>模型健康监控</h1>
+                <div class="sub">过去 24 小时 · 5 个模型 · 10 次测试</div>
+            </div>
+            <div class="head-actions">
+                <button class="btn-sm btn-white">↻ 刷新</button>
+                <button class="btn-sm btn-accent">▶ 全量测试</button>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats" id="stats"></div>
+
+        <!-- Model Grid -->
+        <div class="model-grid" id="models"></div>
+    </main>
+
+    <script>
+        const statsData = [
+            { label: 'MODELS', value: '5', pct: 100, color: 'var(--accent)' },
+            { label: 'SUCCESS', value: '80%', pct: 80, color: 'var(--green)' },
+            { label: 'TTFB', value: '1.1s', pct: 70, color: 'var(--purple)' },
+            { label: 'TPS', value: '20.8', pct: 65, color: 'var(--cyan)' },
+            { label: 'TESTS', value: '10', pct: 100, color: 'var(--amber)' },
+        ];
+
+        document.getElementById('stats').innerHTML = statsData.map(s => `
+  <div class="stat">
+    <div class="stat-ring" style="background:conic-gradient(${s.color} ${s.pct * 3.6}deg, #f1f2f6 0deg)">
+      <div class="stat-ring-inner" style="color:${s.color}">${s.value}</div>
+    </div>
+    <div class="stat-text">
+      <div class="lbl">${s.label}</div>
+      <div class="val" style="color:${s.color}">${s.value}</div>
+    </div>
+  </div>
+`).join('');
+
+        const models = [
+            { name: 'minimax-m2.5', channel: 'CLIProxyAPI', type: 'OpenAI', reliability: 100, latency: 95, throughput: 66, network: 100, reliabilityV: '100%', latencyV: '482ms', throughputV: '33.2t/s', networkV: '0ms', score: 95, p50: '482ms', p99: '482ms', ttfb: '482ms', tps: '33.2' },
+            { name: 'gpt-oss-120b', channel: 'CLIProxyAPI', type: 'OpenAI', reliability: 100, latency: 93, throughput: 50, network: 100, reliabilityV: '100%', latencyV: '619ms', throughputV: '25.2t/s', networkV: '0ms', score: 93, p50: '604ms', p99: '634ms', ttfb: '634ms', tps: '25.2' },
+            { name: 'kimi-k2.5', channel: 'CLIProxyAPI', type: 'OpenAI', reliability: 100, latency: 2, throughput: 34, network: 99, reliabilityV: '100%', latencyV: '5.4s', throughputV: '17.2t/s', networkV: '2ms', score: 62, p50: '928ms', p99: '9.8s', ttfb: '928ms', tps: '17.2' },
+            { name: 'glm5', channel: 'CLIProxyAPI', type: 'OpenAI', reliability: 100, latency: 38, throughput: 15, network: 99, reliabilityV: '100%', latencyV: '4.2s', throughputV: '7.4t/s', networkV: '2ms', score: 58, p50: '2.2s', p99: '6.2s', ttfb: '2.2s', tps: '7.4' },
+            { name: 'deepseek-v3.2', channel: 'CLIProxyAPI', type: 'OpenAI', reliability: 0, latency: 0, throughput: 0, network: 0, reliabilityV: '0%', latencyV: '超时', throughputV: '-', networkV: '-', score: 0, p50: '-', p99: '-', ttfb: '-', tps: '-' },
+        ];
+
+        const dims = [
+            { key: 'reliability', label: '可靠性', color: 'var(--green)' },
+            { key: 'latency', label: '响应延迟', color: 'var(--purple)' },
+            { key: 'throughput', label: '吞吐量', color: 'var(--cyan)' },
+            { key: 'network', label: '网络质量', color: 'var(--amber)' },
+        ];
+
+        function scoreColor(s) {
+            if (s >= 80) return 'var(--green)';
+            if (s >= 60) return 'var(--amber)';
+            if (s >= 40) return 'var(--orange)';
+            return 'var(--red)';
+        }
+        function scoreClass(s) {
+            if (s >= 80) return 'excellent';
+            if (s >= 40) return 'good';
+            return 'poor';
+        }
+        function scoreBg(s) {
+            if (s >= 80) return 'rgba(16,185,129,0.08)';
+            if (s >= 60) return 'rgba(245,158,11,0.08)';
+            if (s >= 40) return 'rgba(249,115,22,0.08)';
+            return 'rgba(239,68,68,0.08)';
+        }
+
+        document.getElementById('models').innerHTML = models.map(m => {
+            const sc = scoreColor(m.score);
+            const cls = scoreClass(m.score);
+            const metricsHTML = dims.map(d => {
+                const val = m[d.key];
+                return `
+      <div class="mm">
+        <div class="mm-head">
+          <span class="l">${d.label}</span>
+          <span class="v">${m[d.key + 'V']}</span>
+        </div>
+        <div class="mm-track">
+          <div class="mm-fill" style="width:${val}%;background:${d.color}"></div>
+        </div>
+      </div>`;
+            }).join('');
+
+            return `
+    <div class="m-card ${cls}">
+      <div class="m-top">
+        <div>
+          <div class="m-name">${m.name}</div>
+          <div class="m-badges">
+            <span class="m-badge">${m.channel}</span>
+            <span class="m-badge">${m.type}</span>
+          </div>
+        </div>
+        <div class="m-score-pill" style="background:${scoreBg(m.score)};color:${sc}">
+          ${m.score}
+          <span class="lbl">分</span>
+        </div>
+      </div>
+      <div class="m-metrics">${metricsHTML}</div>
+      <div class="m-details">
+        <span>P50 ${m.p50}</span>
+        <span>P99 ${m.p99}</span>
+        <span>TTFB ${m.ttfb}</span>
+        <span>TPS ${m.tps}</span>
+      </div>
+    </div>`;
+        }).join('');
+    </script>
+</body>
+
+</html>

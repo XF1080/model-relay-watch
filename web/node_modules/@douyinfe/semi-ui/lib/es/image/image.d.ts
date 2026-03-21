@@ -1,0 +1,50 @@
+import React from "react";
+import BaseComponent from "../_base/baseComponent";
+import { ImageProps, ImageStates } from "./interface";
+import PropTypes from "prop-types";
+import { PreviewContextProps } from "./previewContext";
+import ImageFoundation, { ImageAdapter } from '@douyinfe/semi-foundation/lib/es/image/imageFoundation';
+import '@douyinfe/semi-foundation/lib/es/image/image.css';
+export default class Image extends BaseComponent<ImageProps, ImageStates> {
+    static isSemiImage: boolean;
+    static contextType: React.Context<PreviewContextProps>;
+    static propTypes: {
+        style: PropTypes.Requireable<object>;
+        className: PropTypes.Requireable<string>;
+        src: PropTypes.Requireable<string>;
+        width: PropTypes.Requireable<NonNullable<string | number>>;
+        height: PropTypes.Requireable<NonNullable<string | number>>;
+        alt: PropTypes.Requireable<string>;
+        placeholder: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        fallback: PropTypes.Requireable<NonNullable<PropTypes.ReactNodeLike>>;
+        preview: PropTypes.Requireable<NonNullable<boolean | object>>;
+        onLoad: PropTypes.Requireable<(...args: any[]) => any>;
+        onError: PropTypes.Requireable<(...args: any[]) => any>;
+        onClick: PropTypes.Requireable<(...args: any[]) => any>;
+        crossOrigin: PropTypes.Requireable<string>;
+        imageID: PropTypes.Requireable<number>;
+    };
+    static defaultProps: {
+        preview: boolean;
+    };
+    get adapter(): ImageAdapter<ImageProps, ImageStates>;
+    context: PreviewContextProps;
+    foundation: ImageFoundation;
+    imgRef: React.RefObject<HTMLImageElement>;
+    constructor(props: ImageProps);
+    static getDerivedStateFromProps(props: ImageProps, state: ImageStates): Partial<ImageStates>;
+    isInGroup(): boolean;
+    isLazyLoad(): boolean;
+    handleClick: (e: any) => void;
+    handleLoaded: (e: any) => void;
+    handleError: (e: any) => void;
+    handlePreviewVisibleChange: (visible: boolean) => void;
+    renderDefaultLoading: () => React.JSX.Element;
+    renderDefaultError: () => React.JSX.Element;
+    renderLoad: () => React.JSX.Element;
+    renderError: () => React.JSX.Element;
+    renderExtra: () => React.JSX.Element;
+    getLocalTextByKey: (key: string) => React.JSX.Element;
+    renderMask: () => React.JSX.Element;
+    render(): React.JSX.Element;
+}

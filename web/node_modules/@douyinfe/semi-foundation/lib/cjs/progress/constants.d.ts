@@ -1,0 +1,15 @@
+declare const cssClasses: {
+    PREFIX: string;
+};
+declare const strings: {
+    types: string[];
+    DEFAULT_TYPE: string;
+    STROKE_DEFAULT: string;
+    strokeLineCap: string[];
+    DEFAULT_LINECAP: string;
+    sizes: string[];
+    DEFAULT_SIZE: string;
+    directions: string[];
+    DEFAULT_DIRECTION: string;
+};
+export { cssClasses, strings };

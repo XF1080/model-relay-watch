@@ -1,0 +1,52 @@
+import React, { PureComponent } from 'react';
+import PropTypes from 'prop-types';
+import cls from 'classnames';
+import { strings, cssClasses } from '@douyinfe/semi-foundation/lib/es/typography/constants';
+import Base from './base';
+const prefixCls = cssClasses.PREFIX;
+export default class Paragraph extends PureComponent {
+  render() {
+    const {
+      className
+    } = this.props;
+    const paragraphCls = cls(className, `${prefixCls}-paragraph`);
+    return /*#__PURE__*/React.createElement(Base, Object.assign({
+      component: 'p'
+    }, this.props, {
+      className: paragraphCls
+    }));
+  }
+}
+Paragraph.propTypes = {
+  copyable: PropTypes.oneOfType([PropTypes.object, PropTypes.bool]),
+  delete: PropTypes.bool,
+  disabled: PropTypes.bool,
+  // editable: PropTypes.bool,
+  ellipsis: PropTypes.oneOfType([PropTypes.object, PropTypes.bool]),
+  mark: PropTypes.bool,
+  link: PropTypes.oneOfType([PropTypes.object, PropTypes.bool]),
+  underline: PropTypes.bool,
+  strong: PropTypes.bool,
+  type: PropTypes.oneOf(strings.TYPE),
+  size: PropTypes.oneOf(strings.SIZE),
+  spacing: PropTypes.oneOf(strings.SPACING),
+  style: PropTypes.object,
+  className: PropTypes.string,
+  component: PropTypes.string
+};
+Paragraph.defaultProps = {
+  copyable: false,
+  delete: false,
+  disabled: false,
+  // editable: false,
+  ellipsis: false,
+  mark: false,
+  underline: false,
+  strong: false,
+  link: false,
+  type: 'primary',
+  size: 'normal',
+  spacing: 'normal',
+  style: {},
+  className: ''
+};

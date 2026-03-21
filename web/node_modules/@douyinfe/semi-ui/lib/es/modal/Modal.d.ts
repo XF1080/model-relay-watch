@@ -1,0 +1,116 @@
+import '@douyinfe/semi-foundation/lib/es/modal/modal.css';
+import ModalFoundation, { ModalAdapter, ModalProps, ModalState } from '@douyinfe/semi-foundation/lib/es/modal/modalFoundation';
+import PropTypes from 'prop-types';
+import React, { CSSProperties, ReactNode } from 'react';
+import BaseComponent from '../_base/baseComponent';
+import { ButtonProps } from '../button/Button';
+import useModal from './useModal';
+export declare let destroyFns: any[];
+export type ConfirmType = 'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom';
+export type Directions = 'ltr' | 'rtl';
+export type { ModalState };
+export interface ModalReactProps extends ModalProps {
+    cancelButtonProps?: ButtonProps;
+    children?: React.ReactNode;
+    okButtonProps?: ButtonProps;
+    bodyStyle?: CSSProperties;
+    maskStyle?: CSSProperties;
+    style?: CSSProperties;
+    icon?: ReactNode;
+    closeIcon?: ReactNode;
+    title?: ReactNode;
+    content?: ReactNode;
+    footer?: ReactNode;
+    header?: ReactNode;
+    onCancel?: (e: React.MouseEvent) => void | Promise<any>;
+    onOk?: (e: React.MouseEvent) => void | Promise<any>;
+    modalRender?: (node: ReactNode) => ReactNode;
+}
+declare class Modal extends BaseComponent<ModalReactProps, ModalState> {
+    static propTypes: {
+        mask: PropTypes.Requireable<boolean>;
+        closable: PropTypes.Requireable<boolean>;
+        centered: PropTypes.Requireable<boolean>;
+        visible: PropTypes.Requireable<boolean>;
+        width: PropTypes.Requireable<NonNullable<string | number>>;
+        height: PropTypes.Requireable<NonNullable<string | number>>;
+        confirmLoading: PropTypes.Requireable<boolean>;
+        cancelLoading: PropTypes.Requireable<boolean>;
+        okText: PropTypes.Requireable<string>;
+        okType: PropTypes.Requireable<string>;
+        cancelText: PropTypes.Requireable<string>;
+        maskClosable: PropTypes.Requireable<boolean>;
+        onCancel: PropTypes.Requireable<(...args: any[]) => any>;
+        onOk: PropTypes.Requireable<(...args: any[]) => any>;
+        modalRender: PropTypes.Requireable<(...args: any[]) => any>;
+        afterClose: PropTypes.Requireable<(...args: any[]) => any>;
+        okButtonProps: PropTypes.Requireable<object>;
+        cancelButtonProps: PropTypes.Requireable<object>;
+        style: PropTypes.Requireable<object>;
+        className: PropTypes.Requireable<string>;
+        maskStyle: PropTypes.Requireable<object>;
+        bodyStyle: PropTypes.Requireable<object>;
+        zIndex: PropTypes.Requireable<number>;
+        title: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        icon: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        header: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        footer: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        hasCancel: PropTypes.Requireable<boolean>;
+        motion: PropTypes.Requireable<boolean>;
+        children: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        getPopupContainer: PropTypes.Requireable<(...args: any[]) => any>;
+        getContainerContext: PropTypes.Requireable<(...args: any[]) => any>;
+        maskFixed: PropTypes.Requireable<boolean>;
+        closeIcon: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        closeOnEsc: PropTypes.Requireable<boolean>;
+        size: PropTypes.Requireable<string>;
+        keepDOM: PropTypes.Requireable<boolean>;
+        lazyRender: PropTypes.Requireable<boolean>;
+        direction: PropTypes.Requireable<string>;
+        fullScreen: PropTypes.Requireable<boolean>;
+        footerFill: PropTypes.Requireable<boolean>;
+    };
+    static __SemiComponentName__: string;
+    static defaultProps: any;
+    static useModal: typeof useModal;
+    foundation: ModalFoundation;
+    private readonly modalRef;
+    private bodyOverflow;
+    private scrollBarWidth;
+    private originBodyWidth;
+    private _haveRendered;
+    constructor(props: ModalReactProps);
+    get adapter(): ModalAdapter;
+    static getDerivedStateFromProps(props: ModalReactProps, prevState: ModalState): Partial<ModalState>;
+    static info: (props: ModalReactProps) => {
+        destroy: () => void;
+        update: (newConfig: ModalReactProps) => void;
+    };
+    static success: (props: ModalReactProps) => {
+        destroy: () => void;
+        update: (newConfig: ModalReactProps) => void;
+    };
+    static error: (props: ModalReactProps) => {
+        destroy: () => void;
+        update: (newConfig: ModalReactProps) => void;
+    };
+    static warning: (props: ModalReactProps) => {
+        destroy: () => void;
+        update: (newConfig: ModalReactProps) => void;
+    };
+    static confirm: (props: ModalReactProps) => {
+        destroy: () => void;
+        update: (newConfig: import("./confirm").ConfirmProps) => void;
+    };
+    static destroyAll: () => void;
+    componentDidMount(): void;
+    componentDidUpdate(prevProps: ModalReactProps, prevState: ModalState, snapshot: any): void;
+    componentWillUnmount(): void;
+    handleCancel: (e: React.MouseEvent) => void;
+    handleOk: (e: React.MouseEvent) => void;
+    updateState: () => void;
+    renderFooter: () => ReactNode;
+    renderDialog: () => React.JSX.Element;
+    render(): React.JSX.Element;
+}
+export default Modal;

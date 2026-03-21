@@ -1,0 +1,6 @@
+import BaseFoundation from '../base/foundation';
+export default class TableCellFoundation extends BaseFoundation {
+  handleClick(e) {
+    this._adapter.notifyClick(this.getProp('record'), e);
+  }
+}

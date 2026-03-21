@@ -1,0 +1,23 @@
+import React, { PureComponent } from 'react';
+import PropTypes from 'prop-types';
+import '@douyinfe/semi-foundation/lib/es/typography/typography.css';
+import { BaseProps } from '../_base/baseComponent';
+interface TypographyProps extends BaseProps {
+    component?: React.ElementType;
+    forwardRef?: React.RefObject<any>;
+    tooltipRef?: React.RefObject<any>;
+}
+declare class Typography extends PureComponent<TypographyProps> {
+    static defaultProps: {
+        component: string;
+        style: {};
+        className: string;
+    };
+    static propTypes: {
+        component: PropTypes.Requireable<string>;
+        style: PropTypes.Requireable<object>;
+        className: PropTypes.Requireable<string>;
+    };
+    render(): React.JSX.Element;
+}
+export default Typography;

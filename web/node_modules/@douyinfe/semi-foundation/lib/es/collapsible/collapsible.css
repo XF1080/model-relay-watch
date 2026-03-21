@@ -1,0 +1,6 @@
+/* shadow */
+/* sizing */
+/* spacing */
+.semi-collapsible-transition {
+  transition: height 250ms cubic-bezier(0.25, 0.1, 0.25, 1) var(--semi-transition_delay-none), opacity 250ms var(--semi-transition_function-easeIn) var(--semi-transition_delay-none);
+}

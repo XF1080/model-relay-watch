@@ -1,0 +1,16 @@
+declare const cssClasses: {
+    PREFIX: string;
+    DISABLED: string;
+    VERTICAL: string;
+    TRACK: string;
+    DOTS: string;
+    MARKS: string;
+    HANDLE: string;
+    HANDLE_DOT: string;
+};
+declare const strings: {
+    SIZE: string[];
+    POSITION: string[];
+    OPTIONS: string[];
+};
+export { cssClasses, strings };

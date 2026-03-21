@@ -1,0 +1,49 @@
+import React, { ReactNode } from 'react';
+import PropTypes from 'prop-types';
+import { ContextValue } from '../configProvider/context';
+import BaseComponent from '../_base/baseComponent';
+import ModalContentFoundation, { ModalContentAdapter, ModalContentProps, ModalContentState } from '@douyinfe/semi-foundation/lib/cjs/modal/modalContentFoundation';
+import FocusTrapHandle from '@douyinfe/semi-foundation/lib/cjs/utils/FocusHandle';
+export interface ModalContentReactProps extends ModalContentProps {
+    children?: React.ReactNode;
+    modalRender?: (node: ReactNode) => ReactNode;
+}
+export default class ModalContent extends BaseComponent<ModalContentReactProps, ModalContentState> {
+    static contextType: React.Context<ContextValue>;
+    static propTypes: {
+        close: PropTypes.Requireable<(...args: any[]) => any>;
+        getContainerContext: PropTypes.Requireable<(...args: any[]) => any>;
+        contentClassName: PropTypes.Requireable<string>;
+        maskClassName: PropTypes.Requireable<string>;
+        onAnimationEnd: PropTypes.Requireable<(...args: any[]) => any>;
+        preventScroll: PropTypes.Requireable<boolean>;
+    };
+    static defaultProps: {
+        close: (...args: any[]) => void;
+        getContainerContext: (...args: any[]) => void;
+        contentClassName: string;
+        maskClassName: string;
+    };
+    dialogId: string;
+    private timeoutId;
+    modalDialogRef: React.MutableRefObject<HTMLDivElement>;
+    foundation: ModalContentFoundation;
+    context: ContextValue;
+    focusTrapHandle: FocusTrapHandle;
+    constructor(props: ModalContentProps);
+    get adapter(): ModalContentAdapter;
+    componentDidMount(): void;
+    componentWillUnmount(): void;
+    onKeyDown: (e: React.MouseEvent) => void;
+    onDialogMouseDown: () => void;
+    onMaskMouseUp: () => void;
+    onMaskClick: (e: React.MouseEvent) => void;
+    close: (e: React.MouseEvent) => void;
+    getMaskElement: () => React.JSX.Element;
+    renderCloseBtn: () => any;
+    renderIcon: () => React.JSX.Element;
+    renderHeader: () => any;
+    renderBody: () => React.JSX.Element;
+    getDialogElement: () => React.JSX.Element;
+    render(): React.JSX.Element;
+}

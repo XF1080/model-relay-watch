@@ -1,0 +1,26 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = shallowEqual;
+function shallowEqual(a, b) {
+  if (typeof a !== typeof b) {
+    return false;
+  }
+  if (typeof a === 'string' || typeof a === 'number') {
+    return a === b;
+  }
+  let i;
+  for (i in a) {
+    if (!(i in b)) {
+      return false;
+    }
+  }
+  for (i in b) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return i === void 0 ? a === b : true;
+}

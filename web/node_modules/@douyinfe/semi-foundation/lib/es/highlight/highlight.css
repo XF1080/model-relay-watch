@@ -1,0 +1,8 @@
+/* shadow */
+/* sizing */
+/* spacing */
+.semi-highlight-tag {
+  color: var(--semi-color-highlight);
+  background-color: var(--semi-color-highlight-bg);
+  font-weight: 600;
+}

@@ -1,0 +1,100 @@
+/* shadow */
+/* sizing */
+/* spacing */
+.semi-cropper {
+  position: relative;
+}
+.semi-cropper img {
+  max-width: none;
+}
+.semi-cropper-img {
+  position: absolute;
+  user-select: none;
+}
+.semi-cropper-img-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+.semi-cropper-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--semi-color-overlay-bg);
+  cursor: move;
+}
+.semi-cropper-box {
+  position: absolute;
+  outline: 1px solid var(--semi-color-primary);
+}
+.semi-cropper-box-corner {
+  position: absolute;
+  background: var(--semi-color-primary);
+  width: 10px;
+  height: 10px;
+  z-index: 1;
+}
+.semi-cropper-box-corner-tl {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+.semi-cropper-box-corner-tr {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+.semi-cropper-box-corner-tm {
+  top: -5px;
+  left: 50%;
+  margin-left: -5px;
+  cursor: ns-resize;
+}
+.semi-cropper-box-corner-ml {
+  top: 50%;
+  left: -5px;
+  margin-top: -5px;
+  cursor: ew-resize;
+}
+.semi-cropper-box-corner-mr {
+  top: 50%;
+  right: -5px;
+  margin-top: -5px;
+  cursor: ew-resize;
+}
+.semi-cropper-box-corner-bl {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+.semi-cropper-box-corner-bm {
+  bottom: -5px;
+  left: 50%;
+  margin-left: -5px;
+  cursor: ns-resize;
+}
+.semi-cropper-box-corner-br {
+  bottom: -5px;
+  right: -5px;
+  cursor: nwse-resize;
+}
+.semi-cropper-view-box {
+  position: absolute;
+  overflow: hidden;
+  cursor: move;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.semi-cropper-view-box-round {
+  border-radius: 50%;
+}
+.semi-cropper-view-img {
+  user-select: none;
+}

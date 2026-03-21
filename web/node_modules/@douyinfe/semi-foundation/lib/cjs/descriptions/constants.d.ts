@@ -1,0 +1,10 @@
+declare const cssClasses: {
+    PREFIX: string;
+};
+declare const strings: {
+    ALIGN_SET: string[];
+    SIZE_SET: string[];
+    LAYOUT_SET: string[];
+};
+declare const numbers: {};
+export { cssClasses, strings, numbers };

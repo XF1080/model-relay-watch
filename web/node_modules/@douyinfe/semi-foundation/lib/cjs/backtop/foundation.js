@@ -1,0 +1,91 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+var _foundation = _interopRequireDefault(require("../base/foundation"));
+var _semiAnimation = require("@douyinfe/semi-animation");
+function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+class BackTopFoundation extends _foundation.default {
+  constructor(adapter) {
+    super(Object.assign({}, adapter));
+    this.scrollTo = (targetNode, from, to) => {
+      const {
+        duration
+      } = this.getProps();
+      this.animation = new _semiAnimation.Animation({
+        from: {
+          scrollTop: from
+        },
+        to: {
+          scrollTop: to
+        }
+      }, {
+        duration,
+        easing: 'easeInOutCubic'
+      });
+      this.animation.on('frame', _ref => {
+        let {
+          scrollTop
+        } = _ref;
+        this._adapter.targetScrollToTop(targetNode, scrollTop);
+      });
+      this.animation.start();
+    };
+    this.handleScroll = () => {
+      const {
+        target,
+        visibilityHeight
+      } = this.getProps();
+      const targetNode = target();
+      const update = () => {
+        const scrollTop = this.getScroll(targetNode);
+        this._adapter.updateVisible(scrollTop > visibilityHeight);
+      };
+      requestAnimationFrame(update);
+    };
+  }
+  init() {
+    const {
+      target
+    } = this.getProps();
+    const targetNode = target();
+    if (!targetNode) {
+      return;
+    }
+    targetNode.addEventListener('scroll', this.handleScroll);
+    this.handleScroll();
+  }
+  destroy() {
+    const {
+      target
+    } = this.getProps();
+    const targetNode = target();
+    targetNode && targetNode.removeEventListener('scroll', this.handleScroll);
+    this.animation && this.animation.destroy();
+  }
+  getScroll(target) {
+    if (this._adapter.isWindowUndefined()) {
+      return 0;
+    }
+    const prop = 'pageYOffset';
+    const method = 'scrollTop';
+    const isWindow = this._adapter.targetIsWindow(target);
+    const scroll = isWindow ? target[prop] : target[method];
+    return scroll;
+  }
+  setScrollTop(to) {
+    const {
+      target
+    } = this.getProps();
+    const targetNode = target();
+    const from = this.getScroll(targetNode);
+    this.scrollTo(targetNode, from, to);
+  }
+  onClick(e) {
+    this.setScrollTop(0);
+    this._adapter.notifyClick(e);
+  }
+}
+exports.default = BackTopFoundation;

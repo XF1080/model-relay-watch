@@ -1,0 +1,66 @@
+/// <reference types="lodash" />
+import React, { ReactNode } from "react";
+import BaseComponent from "../_base/baseComponent";
+import { FooterProps } from "./interface";
+import PropTypes from "prop-types";
+import PreviewFooterFoundation, { PreviewFooterAdapter } from '@douyinfe/semi-foundation/lib/es/image/previewFooterFoundation';
+export default class Footer extends BaseComponent<FooterProps> {
+    static propTypes: {
+        curPage: PropTypes.Requireable<number>;
+        totalNum: PropTypes.Requireable<number>;
+        disabledPrev: PropTypes.Requireable<boolean>;
+        disabledNext: PropTypes.Requireable<boolean>;
+        disableDownload: PropTypes.Requireable<boolean>;
+        className: PropTypes.Requireable<string>;
+        zoom: PropTypes.Requireable<number>;
+        ratio: PropTypes.Requireable<string>;
+        prevTip: PropTypes.Requireable<string>;
+        nextTip: PropTypes.Requireable<string>;
+        zoomInTip: PropTypes.Requireable<string>;
+        zoomOutTip: PropTypes.Requireable<string>;
+        rotateTip: PropTypes.Requireable<string>;
+        downloadTip: PropTypes.Requireable<string>;
+        adaptiveTip: PropTypes.Requireable<string>;
+        originTip: PropTypes.Requireable<string>;
+        showTooltip: PropTypes.Requireable<boolean>;
+        onZoomIn: PropTypes.Requireable<(...args: any[]) => any>;
+        onZoomOut: PropTypes.Requireable<(...args: any[]) => any>;
+        onPrev: PropTypes.Requireable<(...args: any[]) => any>;
+        onNext: PropTypes.Requireable<(...args: any[]) => any>;
+        onAdjustRatio: PropTypes.Requireable<(...args: any[]) => any>;
+        onRotateLeft: PropTypes.Requireable<(...args: any[]) => any>;
+        onDownload: PropTypes.Requireable<(...args: any[]) => any>;
+    };
+    static defaultProps: {
+        min: number;
+        max: number;
+        step: number;
+        showTooltip: boolean;
+        disableDownload: boolean;
+    };
+    get adapter(): PreviewFooterAdapter<FooterProps>;
+    foundation: PreviewFooterFoundation;
+    constructor(props: FooterProps);
+    changeSliderValue: (type: string) => void;
+    handleMinusClick: () => void;
+    handlePlusClick: () => void;
+    handleRotateLeft: () => void;
+    handleRotateRight: () => void;
+    handleSlideChange: import("lodash").DebouncedFuncLeading<(value: any) => void>;
+    handleRatioClick: () => void;
+    customRenderViewMenu: () => ReactNode;
+    getFinalIconElement: (element: ReactNode, content: ReactNode, key: string, gap?: boolean) => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getLocalTextByKey: (key: string) => React.JSX.Element;
+    getIconChevronLeft: () => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getIconChevronRight: () => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getIconMinus: () => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getIconPlus: () => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getIconRatio: () => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getIconRotate: () => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getIconDownload: () => string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element;
+    getNumberInfo: () => React.JSX.Element;
+    getSlider: () => React.JSX.Element;
+    getMenu: () => (string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element)[];
+    getFooterMenu: () => (string | number | boolean | Iterable<React.ReactNode> | React.JSX.Element)[];
+    render(): React.JSX.Element;
+}

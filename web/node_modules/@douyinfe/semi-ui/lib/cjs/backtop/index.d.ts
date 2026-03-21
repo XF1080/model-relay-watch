@@ -1,0 +1,37 @@
+import React from 'react';
+import BaseComponent from '../_base/baseComponent';
+import PropTypes from 'prop-types';
+import { BackTopAdapter } from '@douyinfe/semi-foundation/lib/cjs/backtop/foundation';
+import '@douyinfe/semi-foundation/lib/cjs/backtop/backtop.css';
+export interface BackTopProps {
+    target?: () => any;
+    visibilityHeight?: number;
+    duration?: number;
+    onClick?: (e: React.MouseEvent) => void;
+    style?: React.CSSProperties;
+    className?: string;
+    children?: React.ReactNode | undefined;
+}
+export interface BackTopState {
+    visible?: boolean;
+}
+export default class BackTop extends BaseComponent<BackTopProps, BackTopState> {
+    static __SemiComponentName__: string;
+    static defaultProps: any;
+    static propTypes: {
+        target: PropTypes.Requireable<(...args: any[]) => any>;
+        visibilityHeight: PropTypes.Requireable<number>;
+        duration: PropTypes.Requireable<number>;
+        onClick: PropTypes.Requireable<(...args: any[]) => any>;
+        style: PropTypes.Requireable<object>;
+        className: PropTypes.Requireable<string>;
+    };
+    handler: (e: React.MouseEvent<HTMLDivElement>) => void;
+    constructor(props: BackTopProps);
+    componentDidMount(): void;
+    componentWillUnmount(): void;
+    get adapter(): BackTopAdapter;
+    handleClick(e: React.MouseEvent<HTMLDivElement>): void;
+    renderDefault(): React.JSX.Element;
+    render(): React.JSX.Element;
+}

@@ -1,0 +1,37 @@
+import _noop from "lodash/noop";
+import React from 'react';
+import { IconSidebar } from '@douyinfe/semi-icons';
+import Button from '../button';
+import Tooltip from '../tooltip';
+export default function CollapseButton(_ref) {
+  let {
+    prefixCls,
+    locale,
+    collapseText,
+    isCollapsed,
+    onClick = _noop
+  } = _ref;
+  const handleClick = () => {
+    if (typeof onClick === 'function') {
+      onClick(!isCollapsed);
+    }
+  };
+  const btnProps = {
+    icon: /*#__PURE__*/React.createElement(IconSidebar, null),
+    type: 'tertiary',
+    theme: 'borderless',
+    onClick: handleClick
+  };
+  let finalCollapseText = isCollapsed ? locale === null || locale === void 0 ? void 0 : locale.expandText : locale === null || locale === void 0 ? void 0 : locale.collapseText;
+  if (typeof collapseText === 'function') {
+    finalCollapseText = collapseText(isCollapsed);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: `${prefixCls}-collapse-btn`
+  }, isCollapsed ? (/*#__PURE__*/React.createElement(Tooltip, {
+    content: finalCollapseText,
+    position: "right"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: `${prefixCls}-collapse-wrapper`
+  }, /*#__PURE__*/React.createElement(Button, Object.assign({}, btnProps))))) : (/*#__PURE__*/React.createElement(Button, Object.assign({}, btnProps), finalCollapseText)));
+}
