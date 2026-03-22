@@ -190,8 +190,12 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 	}
 
 	// Build single group "Claude Code" with models sorted by total tokens desc
+	// Filter out models with zero tokens
 	var models []TokenStatsModel
 	for _, agg := range modelAgg {
+		if agg.InputTokens+agg.OutputTokens+agg.CacheReadTokens+agg.CacheWriteTokens == 0 {
+			continue
+		}
 		models = append(models, *agg)
 	}
 	sort.Slice(models, func(i, j int) bool {
@@ -302,6 +306,10 @@ func parseJSONLFile(path string, since time.Time) ([]ccUsageRecord, error) {
 			continue
 		}
 		if entry.Type != "assistant" || entry.Message.Usage == nil || entry.Message.Model == "" {
+			continue
+		}
+		// Skip synthetic/internal messages
+		if strings.HasPrefix(entry.Message.Model, "<") {
 			continue
 		}
 
