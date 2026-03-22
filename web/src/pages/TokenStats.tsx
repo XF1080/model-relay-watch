@@ -230,12 +230,18 @@ export default function TokenStats() {
                 }}>{cfg.icon}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{cfg.label}</span>
+                  {g.api_source_label && (
+                    <span style={{
+                      fontSize: 10, color: '#fff', fontWeight: 700,
+                      background: '#6366f1', padding: '2px 7px', borderRadius: 4,
+                    }}>{g.api_source_label}</span>
+                  )}
                   {(g.channel_name || g.endpoint_url) && (
                     <span style={{
                       fontSize: 11, color: g.channel_name ? '#6366f1' : '#9ca3af',
                       background: g.channel_name ? '#6366f110' : '#f3f4f6',
                       padding: '2px 8px', borderRadius: 4, fontWeight: 500,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260,
                     }} title={g.endpoint_url}>
                       {g.channel_name || g.endpoint_url}
                     </span>

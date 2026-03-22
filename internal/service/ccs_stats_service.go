@@ -15,6 +15,7 @@ import (
 // Unified usage record from any tool
 type usageRecord struct {
 	AppType             string // "claude" or "codex"
+	APISource           string // "anthropic", "openai", "openai-responses", "proxy", "unknown"
 	Model               string
 	InputTokens         int64
 	OutputTokens        int64
@@ -37,7 +38,8 @@ type TokenStatsSummary struct {
 type TokenStatsModel struct {
 	Model            string  `json:"model"`
 	DisplayName      string  `json:"display_name"`
-	Provider         string  `json:"provider"` // anthropic, openai, google, zhipu, minimax, moonshot, other
+	Provider         string  `json:"provider"`   // anthropic, openai, google, zhipu, minimax, moonshot, other
+	APISource        string  `json:"api_source"`  // anthropic, openai, openai-responses, proxy, unknown
 	InputTokens      int64   `json:"input_tokens"`
 	OutputTokens     int64   `json:"output_tokens"`
 	CacheReadTokens  int64   `json:"cache_read_tokens"`
@@ -49,16 +51,18 @@ type TokenStatsModel struct {
 }
 
 type TokenStatsGroup struct {
-	AppType     string            `json:"app_type"`
-	Label       string            `json:"label"`
-	Models      []TokenStatsModel `json:"models"`
-	TotalIn     int64             `json:"total_in"`
-	TotalOut    int64             `json:"total_out"`
-	TotalCost   float64           `json:"total_cost"`
-	Requests    int               `json:"requests"`
-	EndpointURL string            `json:"endpoint_url,omitempty"`
-	ChannelName string            `json:"channel_name,omitempty"`
-	ChannelID   uint              `json:"channel_id,omitempty"`
+	AppType        string            `json:"app_type"`
+	Label          string            `json:"label"`
+	APISource      string            `json:"api_source,omitempty"`
+	APISourceLabel string            `json:"api_source_label,omitempty"`
+	Models         []TokenStatsModel `json:"models"`
+	TotalIn        int64             `json:"total_in"`
+	TotalOut       int64             `json:"total_out"`
+	TotalCost      float64           `json:"total_cost"`
+	Requests       int               `json:"requests"`
+	EndpointURL    string            `json:"endpoint_url,omitempty"`
+	ChannelName    string            `json:"channel_name,omitempty"`
+	ChannelID      uint              `json:"channel_id,omitempty"`
 }
 
 type TokenStatsTimeline struct {
@@ -258,6 +262,65 @@ func detectProvider(model string) string {
 	}
 }
 
+// detectAPISource determines the API source from message ID format
+func detectAPISource(msgID string) string {
+	switch {
+	case strings.HasPrefix(msgID, "msg_"):
+		return "anthropic"
+	case strings.HasPrefix(msgID, "chatcmpl-"):
+		return "openai"
+	case strings.HasPrefix(msgID, "resp_"):
+		return "openai-responses"
+	case len(msgID) == 32:
+		allHex := true
+		for _, c := range msgID {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				allHex = false
+				break
+			}
+		}
+		if allHex {
+			return "proxy"
+		}
+		return "unknown"
+	default:
+		return "unknown"
+	}
+}
+
+// apiSourceLabel returns a human-readable label for an API source
+func apiSourceLabel(src string) string {
+	switch src {
+	case "anthropic":
+		return "Anthropic API"
+	case "openai":
+		return "OpenAI 兼容"
+	case "openai-responses":
+		return "OpenAI Responses"
+	case "proxy":
+		return "代理/网关"
+	default:
+		return "其他"
+	}
+}
+
+func sortModels(models []TokenStatsModel) {
+	providerOrder := map[string]int{
+		"anthropic": 0, "openai": 1, "google": 2, "deepseek": 3,
+		"zhipu": 4, "minimax": 5, "moonshot": 6, "alibaba": 7, "other": 8,
+	}
+	sort.Slice(models, func(i, j int) bool {
+		pi := providerOrder[models[i].Provider]
+		pj := providerOrder[models[j].Provider]
+		if pi != pj {
+			return pi < pj
+		}
+		ti := models[i].InputTokens + models[i].OutputTokens + models[i].CacheReadTokens + models[i].CacheWriteTokens
+		tj := models[j].InputTokens + models[j].OutputTokens + models[j].CacheReadTokens + models[j].CacheWriteTokens
+		return ti > tj
+	})
+}
+
 func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -318,13 +381,16 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
 
-	// Aggregate by app_type + display_name to merge model variants
+	// Aggregate by app_type + api_source + display_name to distinguish different APIs
 	var summary TokenStatsSummary
 	summary.TotalRequests = len(records)
 
-	type groupModelKey struct{ appType, displayName string }
+	type groupModelKey struct{ appType, apiSource, displayName string }
 	modelAgg := make(map[groupModelKey]*TokenStatsModel)
 	appTypes := make(map[string]bool)
+	// Track unique (appType, apiSource) combos
+	type appSourceKey struct{ appType, apiSource string }
+	appSources := make(map[appSourceKey]bool)
 
 	for _, r := range records {
 		summary.TotalInputTokens += r.InputTokens
@@ -332,13 +398,14 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		summary.TotalCacheRead += r.CacheReadTokens
 		summary.TotalCacheWrite += r.CacheCreationTokens
 		appTypes[r.AppType] = true
+		appSources[appSourceKey{r.AppType, r.APISource}] = true
 
 		dn := cleanModelName(r.Model)
-		k := groupModelKey{r.AppType, dn}
+		k := groupModelKey{r.AppType, r.APISource, dn}
 		agg, ok := modelAgg[k]
 		if !ok {
 			p := lookupPrice(r.Model)
-			agg = &TokenStatsModel{Model: r.Model, DisplayName: dn, Provider: detectProvider(r.Model), PriceIn: p.In, PriceOut: p.Out}
+			agg = &TokenStatsModel{Model: r.Model, DisplayName: dn, Provider: detectProvider(r.Model), APISource: r.APISource, PriceIn: p.In, PriceOut: p.Out}
 			modelAgg[k] = agg
 		}
 		agg.InputTokens += r.InputTokens
@@ -361,7 +428,7 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		"codex":  readCodexEndpoint(home),
 	}
 
-	// Build groups - extensible for future tools
+	// Build groups split by (appType, apiSource)
 	groupOrder := []struct{ key, label string }{
 		{"claude", "Claude Code"},
 		{"codex", "Codex"},
@@ -369,50 +436,83 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		{"opencode", "OpenCode"},
 		{"openclaw", "OpenClaw"},
 	}
+	apiSourceOrder := []string{"anthropic", "openai", "openai-responses", "proxy", "unknown"}
+
 	var groups []TokenStatsGroup
 	for _, g := range groupOrder {
 		if !appTypes[g.key] {
 			continue
 		}
-		grp := TokenStatsGroup{AppType: g.key, Label: g.label}
-		if ep, ok := endpointMap[g.key]; ok && ep != "" {
-			grp.EndpointURL = ep
-			if chID, chName := matchChannel(ep); chID > 0 {
-				grp.ChannelID = chID
-				grp.ChannelName = chName
+		// Find which API sources this tool has
+		var sources []string
+		for _, src := range apiSourceOrder {
+			if appSources[appSourceKey{g.key, src}] {
+				sources = append(sources, src)
 			}
 		}
-		for k, agg := range modelAgg {
-			if k.appType != g.key {
-				continue
+		// If only one source, don't split
+		if len(sources) <= 1 {
+			grp := TokenStatsGroup{AppType: g.key, Label: g.label}
+			if ep, ok := endpointMap[g.key]; ok && ep != "" {
+				grp.EndpointURL = ep
+				if chID, chName := matchChannel(ep); chID > 0 {
+					grp.ChannelID = chID
+					grp.ChannelName = chName
+				}
 			}
-			total := agg.InputTokens + agg.OutputTokens + agg.CacheReadTokens + agg.CacheWriteTokens
-			if total == 0 {
-				continue
+			for k, agg := range modelAgg {
+				if k.appType != g.key {
+					continue
+				}
+				total := agg.InputTokens + agg.OutputTokens + agg.CacheReadTokens + agg.CacheWriteTokens
+				if total == 0 {
+					continue
+				}
+				grp.Models = append(grp.Models, *agg)
+				grp.TotalIn += agg.InputTokens
+				grp.TotalOut += agg.OutputTokens
+				grp.TotalCost += agg.TotalCostUsd
+				grp.Requests += agg.Requests
 			}
-			grp.Models = append(grp.Models, *agg)
-			grp.TotalIn += agg.InputTokens
-			grp.TotalOut += agg.OutputTokens
-			grp.TotalCost += agg.TotalCostUsd
-			grp.Requests += agg.Requests
+			sortModels(grp.Models)
+			if len(grp.Models) > 0 {
+				groups = append(groups, grp)
+			}
+			continue
 		}
-		// Sort by provider group, then by token count within each provider
-		providerOrder := map[string]int{
-			"anthropic": 0, "openai": 1, "google": 2, "deepseek": 3,
-			"zhipu": 4, "minimax": 5, "moonshot": 6, "alibaba": 7, "other": 8,
-		}
-		sort.Slice(grp.Models, func(i, j int) bool {
-			pi := providerOrder[grp.Models[i].Provider]
-			pj := providerOrder[grp.Models[j].Provider]
-			if pi != pj {
-				return pi < pj
+		// Multiple sources: create one group per source
+		for _, src := range sources {
+			grp := TokenStatsGroup{
+				AppType:        g.key,
+				Label:          g.label,
+				APISource:      src,
+				APISourceLabel: apiSourceLabel(src),
 			}
-			ti := grp.Models[i].InputTokens + grp.Models[i].OutputTokens + grp.Models[i].CacheReadTokens + grp.Models[i].CacheWriteTokens
-			tj := grp.Models[j].InputTokens + grp.Models[j].OutputTokens + grp.Models[j].CacheReadTokens + grp.Models[j].CacheWriteTokens
-			return ti > tj
-		})
-		if len(grp.Models) > 0 {
-			groups = append(groups, grp)
+			if ep, ok := endpointMap[g.key]; ok && ep != "" {
+				grp.EndpointURL = ep
+				if chID, chName := matchChannel(ep); chID > 0 {
+					grp.ChannelID = chID
+					grp.ChannelName = chName
+				}
+			}
+			for k, agg := range modelAgg {
+				if k.appType != g.key || k.apiSource != src {
+					continue
+				}
+				total := agg.InputTokens + agg.OutputTokens + agg.CacheReadTokens + agg.CacheWriteTokens
+				if total == 0 {
+					continue
+				}
+				grp.Models = append(grp.Models, *agg)
+				grp.TotalIn += agg.InputTokens
+				grp.TotalOut += agg.OutputTokens
+				grp.TotalCost += agg.TotalCostUsd
+				grp.Requests += agg.Requests
+			}
+			sortModels(grp.Models)
+			if len(grp.Models) > 0 {
+				groups = append(groups, grp)
+			}
 		}
 	}
 
@@ -482,6 +582,7 @@ func parseClaudeJSONL(path string, since time.Time) ([]usageRecord, error) {
 			Type      string `json:"type"`
 			Timestamp string `json:"timestamp"`
 			Message   struct {
+				ID    string         `json:"id"`
 				Model string         `json:"model"`
 				Usage map[string]any `json:"usage"`
 			} `json:"message"`
@@ -516,6 +617,7 @@ func parseClaudeJSONL(path string, since time.Time) ([]usageRecord, error) {
 		}
 		records = append(records, usageRecord{
 			AppType:             "claude",
+			APISource:           detectAPISource(entry.Message.ID),
 			Model:               modelName,
 			InputTokens:         inTok,
 			OutputTokens:        outTok,
@@ -613,6 +715,7 @@ func parseCodexJSONL(path string, since time.Time) ([]usageRecord, error) {
 
 		records = append(records, usageRecord{
 			AppType:         "codex",
+			APISource:       "openai",
 			Model:           modelName,
 			InputTokens:     inTok,
 			OutputTokens:    outTok,
