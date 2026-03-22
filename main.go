@@ -21,16 +21,17 @@ var frontendFS embed.FS
 
 func main() {
 	port := flag.Int("port", 8199, "listen port")
-	dbPath := flag.String("db", "", "database file path (default: ./model-monitor.db in current directory)")
+	dbPath := flag.String("db", "", "database file path (default: data/model-monitor.db)")
 	channelName := flag.String("channel-name", "", "default channel name")
 	channelURL := flag.String("channel-url", "", "default channel URL")
 	channelKey := flag.String("channel-key", "", "default channel API key")
 	flag.Parse()
 
-	// Determine DB path: default to current working directory
+	// Determine DB path: default to data/ under current working directory
 	if *dbPath == "" {
-		*dbPath = "model-monitor.db"
+		*dbPath = "data/model-monitor.db"
 	}
+	os.MkdirAll("data", 0755)
 
 	log.Printf("Model Monitor starting on :%d", *port)
 	log.Printf("Database: %s", *dbPath)
