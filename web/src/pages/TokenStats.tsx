@@ -215,7 +215,19 @@ export default function TokenStats() {
                   alignItems: 'center', justifyContent: 'center',
                   fontSize: 13, fontWeight: 800, color: '#fff', background: cfg.color,
                 }}>{cfg.icon}</div>
-                <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c', flex: 1 }}>{cfg.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{cfg.label}</span>
+                  {(g.channel_name || g.endpoint_url) && (
+                    <span style={{
+                      fontSize: 11, color: g.channel_name ? '#6366f1' : '#9ca3af',
+                      background: g.channel_name ? '#6366f110' : '#f3f4f6',
+                      padding: '2px 8px', borderRadius: 4, fontWeight: 500,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300,
+                    }} title={g.endpoint_url}>
+                      {g.channel_name || g.endpoint_url}
+                    </span>
+                  )}
+                </div>
                 <span style={{ fontSize: 12, color: '#9ca3af' }}>
                   {g.requests.toLocaleString()} 次 &middot; {fmt(g.total_in + g.total_out)} tokens &middot; {fmtCost(g.total_cost)}
                 </span>

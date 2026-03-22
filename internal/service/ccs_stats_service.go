@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"model-monitor/internal/model"
 	"os"
 	"path/filepath"
 	"sort"
@@ -47,13 +48,16 @@ type TokenStatsModel struct {
 }
 
 type TokenStatsGroup struct {
-	AppType   string            `json:"app_type"`
-	Label     string            `json:"label"`
-	Models    []TokenStatsModel `json:"models"`
-	TotalIn   int64             `json:"total_in"`
-	TotalOut  int64             `json:"total_out"`
-	TotalCost float64           `json:"total_cost"`
-	Requests  int               `json:"requests"`
+	AppType     string            `json:"app_type"`
+	Label       string            `json:"label"`
+	Models      []TokenStatsModel `json:"models"`
+	TotalIn     int64             `json:"total_in"`
+	TotalOut    int64             `json:"total_out"`
+	TotalCost   float64           `json:"total_cost"`
+	Requests    int               `json:"requests"`
+	EndpointURL string            `json:"endpoint_url,omitempty"`
+	ChannelName string            `json:"channel_name,omitempty"`
+	ChannelID   uint              `json:"channel_id,omitempty"`
 }
 
 type TokenStatsTimeline struct {
@@ -295,6 +299,12 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		summary.TotalCostUsd += agg.TotalCostUsd
 	}
 
+	// Detect tool endpoints
+	endpointMap := map[string]string{
+		"claude": readClaudeEndpoint(home),
+		"codex":  readCodexEndpoint(home),
+	}
+
 	// Build groups - extensible for future tools
 	groupOrder := []struct{ key, label string }{
 		{"claude", "Claude Code"},
@@ -309,6 +319,13 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 			continue
 		}
 		grp := TokenStatsGroup{AppType: g.key, Label: g.label}
+		if ep, ok := endpointMap[g.key]; ok && ep != "" {
+			grp.EndpointURL = ep
+			if chID, chName := matchChannel(ep); chID > 0 {
+				grp.ChannelID = chID
+				grp.ChannelName = chName
+			}
+		}
 		for k, agg := range modelAgg {
 			if k.appType != g.key {
 				continue
@@ -524,6 +541,85 @@ func parseCodexJSONL(path string, since time.Time) ([]usageRecord, error) {
 		})
 	}
 	return records, nil
+}
+
+// ── Tool endpoint detection ──
+
+// readClaudeEndpoint reads ANTHROPIC_BASE_URL from ~/.claude/settings.json
+func readClaudeEndpoint(home string) string {
+	data, err := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
+	if err != nil {
+		return ""
+	}
+	var cfg struct {
+		Env map[string]string `json:"env"`
+	}
+	if json.Unmarshal(data, &cfg) != nil {
+		return ""
+	}
+	return cfg.Env["ANTHROPIC_BASE_URL"]
+}
+
+// readCodexEndpoint reads the first model_provider base_url from ~/.codex/config.toml
+func readCodexEndpoint(home string) string {
+	data, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil {
+		return ""
+	}
+	// Simple TOML parse: find base_url = "..."
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "base_url") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				val := strings.TrimSpace(parts[1])
+				val = strings.Trim(val, `"'`)
+				return val
+			}
+		}
+	}
+	return ""
+}
+
+// matchChannel finds a channel whose BaseURL matches the given endpoint URL
+func matchChannel(endpointURL string) (uint, string) {
+	if endpointURL == "" {
+		return 0, ""
+	}
+	// Normalize: remove trailing slash and /v1 suffix
+	norm := func(u string) string {
+		u = strings.TrimRight(u, "/")
+		u = strings.TrimSuffix(u, "/v1")
+		u = strings.TrimSuffix(u, "/v1beta")
+		return strings.ToLower(u)
+	}
+	target := norm(endpointURL)
+
+	var channels []model.Channel
+	model.DB.Find(&channels)
+
+	for _, ch := range channels {
+		if norm(ch.BaseURL) == target {
+			return ch.ID, ch.Name
+		}
+	}
+	// Partial match: check if endpoint contains channel URL host or vice versa
+	for _, ch := range channels {
+		chNorm := norm(ch.BaseURL)
+		if chNorm != "" && (strings.Contains(target, extractHost(chNorm)) || strings.Contains(chNorm, extractHost(target))) {
+			return ch.ID, ch.Name
+		}
+	}
+	return 0, ""
+}
+
+func extractHost(u string) string {
+	u = strings.TrimPrefix(u, "https://")
+	u = strings.TrimPrefix(u, "http://")
+	if idx := strings.Index(u, "/"); idx > 0 {
+		u = u[:idx]
+	}
+	return u
 }
 
 func jsonInt64(m map[string]any, key string) int64 {
