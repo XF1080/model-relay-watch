@@ -63,7 +63,7 @@ export default function TokenStats() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#16192c' }}>用量统计</h1>
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>
-            基于 Claude Code 本地会话日志（~/.claude/projects/）
+            基于 Claude Code / Codex 本地会话日志
           </div>
         </div>
         {/* Time range selector */}
