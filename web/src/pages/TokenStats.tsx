@@ -26,6 +26,7 @@ function fmtCost(n: number): string {
 export default function TokenStats() {
   const [data, setData] = useState<any>(null);
   const [range, setRange] = useState('24h');
+  const [activeTab, setActiveTab] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,8 +39,46 @@ export default function TokenStats() {
   };
   useEffect(() => { load(range); }, [range]);
 
-  const summary = data?.summary;
-  const groups: any[] = data?.groups || [];
+  const allGroups: any[] = data?.groups || [];
+
+  // Build available tabs from actual data
+  const tabs = useMemo(() => {
+    const items: { key: string; label: string; color: string; icon: string }[] = [
+      { key: 'all', label: '全部', color: '#6366f1', icon: '∑' },
+    ];
+    for (const g of allGroups) {
+      const cfg = groupConfig[g.app_type];
+      if (cfg) items.push({ key: g.app_type, label: cfg.label, color: cfg.color, icon: cfg.icon });
+      else items.push({ key: g.app_type, label: g.label || g.app_type, color: defaultGroup.color, icon: defaultGroup.icon });
+    }
+    return items;
+  }, [allGroups]);
+
+  // Filter groups by active tab
+  const groups = useMemo(() =>
+    activeTab === 'all' ? allGroups : allGroups.filter(g => g.app_type === activeTab),
+    [allGroups, activeTab],
+  );
+
+  // Recompute summary & timeline for filtered groups
+  const summary = useMemo(() => {
+    if (!data?.summary) return null;
+    if (activeTab === 'all') return data.summary;
+    const filtered = groups;
+    if (filtered.length === 0) return null;
+    return {
+      total_input_tokens: filtered.reduce((s: number, g: any) => s + g.total_in, 0),
+      total_output_tokens: filtered.reduce((s: number, g: any) => s + g.total_out, 0),
+      total_cache_read: filtered.reduce((s: number, g: any) =>
+        s + (g.models || []).reduce((ms: number, m: any) => ms + (m.cache_read_tokens || 0), 0), 0),
+      total_cache_write: filtered.reduce((s: number, g: any) =>
+        s + (g.models || []).reduce((ms: number, m: any) => ms + (m.cache_write_tokens || 0), 0), 0),
+      total_tokens: filtered.reduce((s: number, g: any) => s + g.total_in + g.total_out, 0),
+      total_requests: filtered.reduce((s: number, g: any) => s + g.requests, 0),
+      total_cost_usd: filtered.reduce((s: number, g: any) => s + g.total_cost, 0),
+    };
+  }, [data, groups, activeTab]);
+
   const timeline: any[] = data?.timeline || [];
   const tlMax = useMemo(() => Math.max(1, ...timeline.map((t: any) => (t.input || 0) + (t.output || 0))), [timeline]);
 
@@ -69,6 +108,33 @@ export default function TokenStats() {
           ))}
         </div>
       </div>
+
+      {/* ── Group Tabs ── */}
+      {tabs.length > 1 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
+          {tabs.map(t => {
+            const active = activeTab === t.key;
+            return (
+              <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', fontSize: 13, fontWeight: 600, borderRadius: 8,
+                border: active ? `1.5px solid ${t.color}` : '1.5px solid #ececf1',
+                cursor: 'pointer', transition: 'all .15s',
+                background: active ? t.color + '10' : '#fff',
+                color: active ? t.color : '#6b7280',
+              }}>
+                <span style={{
+                  width: 20, height: 20, borderRadius: 5, display: 'inline-flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 800, color: active ? '#fff' : t.color,
+                  background: active ? t.color : t.color + '18',
+                }}>{t.icon}</span>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fff', borderRadius: 14, border: '1px solid #ececf1' }}>
