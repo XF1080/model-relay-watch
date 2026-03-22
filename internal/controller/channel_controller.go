@@ -29,6 +29,19 @@ func autoDetectTag(name, baseURL string) string {
 	}
 }
 
+// normalizeBaseURL cleans up user-provided base URL:
+// removes trailing slashes and /v1, /v1beta suffixes so we can append them consistently later.
+func normalizeBaseURL(u string) string {
+	u = strings.TrimSpace(u)
+	u = strings.TrimRight(u, "/")
+	// Strip common API path suffixes
+	for _, suffix := range []string{"/v1", "/v1beta", "/v1beta1"} {
+		u = strings.TrimSuffix(u, suffix)
+	}
+	u = strings.TrimRight(u, "/")
+	return u
+}
+
 func ListChannels(c *gin.Context) {
 	channels, err := service.GetAllChannels()
 	if err != nil {
@@ -58,6 +71,7 @@ func CreateChannel(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name and base_url are required"})
 		return
 	}
+	ch.BaseURL = normalizeBaseURL(ch.BaseURL)
 	ch.Status = model.ChannelStatusEnabled
 	if ch.Tag == "" {
 		ch.Tag = autoDetectTag(ch.Name, ch.BaseURL)
@@ -104,7 +118,7 @@ func UpdateChannel(c *gin.Context) {
 		existing.Tag = *input.Tag
 	}
 	if input.BaseURL != nil {
-		existing.BaseURL = *input.BaseURL
+		existing.BaseURL = normalizeBaseURL(*input.BaseURL)
 	}
 	if input.APIKey != nil && *input.APIKey != "" {
 		existing.APIKey = *input.APIKey

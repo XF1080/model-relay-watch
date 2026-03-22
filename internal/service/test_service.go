@@ -173,6 +173,9 @@ func parseResponseMetrics(body, channelType string, result *model.TestResult) {
 
 func buildTestRequest(channelType, baseURL, modelName, endpointType string, maxTokens int) (string, map[string]interface{}) {
 	base := strings.TrimRight(baseURL, "/")
+	base = strings.TrimSuffix(base, "/v1")
+	base = strings.TrimSuffix(base, "/v1beta")
+	base = strings.TrimRight(base, "/")
 
 	switch channelType {
 	case model.ChannelTypeAnthropic:

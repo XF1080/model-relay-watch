@@ -60,7 +60,12 @@ func UpdateModelStatus(id uint, status int) error {
 func DiscoverModels(channel *model.Channel) ([]model.ModelEntry, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
 
-	modelsURL := strings.TrimRight(channel.BaseURL, "/") + "/v1/models"
+	// Normalize: strip trailing / and /v1 to avoid /v1/v1/models
+	base := strings.TrimRight(channel.BaseURL, "/")
+	base = strings.TrimSuffix(base, "/v1")
+	base = strings.TrimSuffix(base, "/v1beta")
+	base = strings.TrimRight(base, "/")
+	modelsURL := base + "/v1/models"
 	req, err := http.NewRequest("GET", modelsURL, nil)
 	if err != nil {
 		return nil, err
