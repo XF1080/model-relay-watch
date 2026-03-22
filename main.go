@@ -11,7 +11,6 @@ import (
 	"model-monitor/internal/service"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
@@ -22,18 +21,16 @@ var frontendFS embed.FS
 
 func main() {
 	port := flag.Int("port", 8199, "listen port")
-	dbPath := flag.String("db", "", "database file path (default: data/model-monitor.db)")
+	dbPath := flag.String("db", "", "database file path (default: ./model-monitor.db in current directory)")
 	channelName := flag.String("channel-name", "", "default channel name")
 	channelURL := flag.String("channel-url", "", "default channel URL")
 	channelKey := flag.String("channel-key", "", "default channel API key")
 	flag.Parse()
 
-	// Determine DB path
+	// Determine DB path: default to current working directory
 	if *dbPath == "" {
-		exe, _ := os.Executable()
-		*dbPath = filepath.Join(filepath.Dir(exe), "data", "model-monitor.db")
+		*dbPath = "model-monitor.db"
 	}
-	os.MkdirAll(filepath.Dir(*dbPath), 0755)
 
 	log.Printf("Model Monitor starting on :%d", *port)
 	log.Printf("Database: %s", *dbPath)
