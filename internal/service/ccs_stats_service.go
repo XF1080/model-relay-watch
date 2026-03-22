@@ -458,11 +458,15 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 				APISource:      src,
 				APISourceLabel: apiSourceLabel(src),
 			}
-			if ep, ok := endpointMap[g.key]; ok && ep != "" {
-				grp.EndpointURL = ep
-				if chID, chName := matchChannel(ep); chID > 0 {
-					grp.ChannelID = chID
-					grp.ChannelName = chName
+			// Only show endpoint for tools with a single API source (e.g. Codex)
+			// Multi-source tools (Claude Code) can't map endpoint to specific source
+			if len(sources) == 1 {
+				if ep, ok := endpointMap[g.key]; ok && ep != "" {
+					grp.EndpointURL = ep
+					if chID, chName := matchChannel(ep); chID > 0 {
+						grp.ChannelID = chID
+						grp.ChannelName = chName
+					}
 				}
 			}
 			for k, agg := range modelAgg {
