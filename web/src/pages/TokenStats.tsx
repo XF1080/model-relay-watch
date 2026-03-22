@@ -236,16 +236,6 @@ export default function TokenStats() {
                       background: '#6366f1', padding: '2px 7px', borderRadius: 4,
                     }}>{g.api_source_label}</span>
                   )}
-                  {(g.channel_name || g.endpoint_url) && (
-                    <span style={{
-                      fontSize: 11, color: g.channel_name ? '#6366f1' : '#9ca3af',
-                      background: g.channel_name ? '#6366f110' : '#f3f4f6',
-                      padding: '2px 8px', borderRadius: 4, fontWeight: 500,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260,
-                    }} title={g.endpoint_url}>
-                      {g.channel_name || g.endpoint_url}
-                    </span>
-                  )}
                 </div>
                 <span style={{ fontSize: 12, color: '#9ca3af' }}>
                   {g.requests.toLocaleString()} 次 &middot; {fmt(g.total_in + g.total_out)} tokens &middot; {fmtCost(g.total_cost)}
