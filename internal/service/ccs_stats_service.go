@@ -35,12 +35,15 @@ type TokenStatsSummary struct {
 
 type TokenStatsModel struct {
 	Model            string  `json:"model"`
+	DisplayName      string  `json:"display_name"`
 	InputTokens      int64   `json:"input_tokens"`
 	OutputTokens     int64   `json:"output_tokens"`
 	CacheReadTokens  int64   `json:"cache_read_tokens"`
 	CacheWriteTokens int64   `json:"cache_write_tokens"`
 	Requests         int     `json:"requests"`
 	TotalCostUsd     float64 `json:"total_cost_usd"`
+	PriceIn          float64 `json:"price_in"`  // $/M input
+	PriceOut         float64 `json:"price_out"` // $/M output
 }
 
 type TokenStatsGroup struct {
@@ -67,44 +70,133 @@ type TokenStatsResponse struct {
 	Timeline []TokenStatsTimeline `json:"timeline"`
 }
 
-// Model pricing: [input, output] per million tokens
-var modelPricing = map[string][2]float64{
-	"claude-opus-4-6":            {15, 75},
-	"claude-opus-4-5-20251101":   {5, 25},
-	"claude-sonnet-4-6":          {3, 15},
-	"claude-sonnet-4-5-20250929": {3, 15},
-	"claude-haiku-4-5-20251001":  {1, 5},
-	"claude-opus-4-20250514":     {15, 75},
-	"claude-opus-4-1-20250805":   {15, 75},
-	"claude-sonnet-4-20250514":   {3, 15},
-	"gpt-5.4":                    {2.5, 10},
-	"gpt-5.4-xhigh":             {2.5, 10},
-	"gpt-5.3-codex":             {2.5, 10},
-	"gpt-5.2-codex":             {2.5, 10},
-	"gpt-5":                     {2.5, 10},
-	"gpt-5.1":                   {2.5, 10},
-	"gpt-5.2":                   {2.5, 10},
+// Official model pricing from provider websites ($/million tokens)
+// [input, output, cache_read_ratio, cache_write_ratio]
+// cache_read_ratio: multiplier on input price for cached reads (e.g. 0.1 = 10% of input)
+// cache_write_ratio: multiplier on input price for cache creation (e.g. 1.25 = 125% of input)
+type modelPrice struct {
+	In, Out, CacheReadRatio, CacheWriteRatio float64
+}
+
+// Sources:
+//   Anthropic: https://docs.anthropic.com/en/docs/about-claude/pricing
+//   OpenAI:    https://openai.com/api/pricing/
+//   Google:    https://ai.google.dev/gemini-api/docs/pricing
+var officialPricing = map[string]modelPrice{
+	// ── Anthropic Claude (cache: read 0.1x, write 1.25x) ──
+	"claude-opus-4-6":            {5, 25, 0.1, 1.25},
+	"claude-opus-4-5":            {5, 25, 0.1, 1.25},
+	"claude-sonnet-4-6":          {3, 15, 0.1, 1.25},
+	"claude-sonnet-4-5":          {3, 15, 0.1, 1.25},
+	"claude-haiku-4-5":           {1, 5, 0.1, 1.25},
+	"claude-opus-4-1":            {15, 75, 0.1, 1.25},
+	"claude-opus-4":              {15, 75, 0.1, 1.25},
+	"claude-sonnet-4":            {3, 15, 0.1, 1.25},
+	"claude-3-5-sonnet":          {3, 15, 0.1, 1.25},
+	"claude-3-5-haiku":           {0.8, 4, 0.1, 1.25},
+	// ── OpenAI GPT-5.x (cache: 90% off input = 0.1x) ──
+	"gpt-5.4":                    {2.5, 15, 0.1, 0},
+	"gpt-5.4-pro":                {30, 180, 0.1, 0},
+	"gpt-5.4-mini":               {0.4, 1.6, 0.1, 0},
+	"gpt-5.3-codex":              {1.75, 14, 0.1, 0},
+	"gpt-5.2-codex":              {1.75, 14, 0.1, 0},
+	"gpt-5.2":                    {1.75, 14, 0.1, 0},
+	"gpt-5.1-codex":              {1.25, 10, 0.1, 0},
+	"gpt-5.1":                    {1.25, 10, 0.1, 0},
+	"gpt-5-codex":                {1.25, 10, 0.1, 0},
+	"gpt-5":                      {1.25, 10, 0.1, 0},
+	// ── Google Gemini (cache: read 0.1x, no write cost) ──
+	"gemini-2.5-pro":             {1.25, 10, 0.1, 0},
+	"gemini-2.5-flash":           {0.30, 2.5, 0.1, 0},
+	"gemini-3-pro":               {1.25, 10, 0.1, 0},
+	"gemini-3-flash":             {0.30, 2.5, 0.1, 0},
+}
+
+func lookupPrice(model string) modelPrice {
+	if p, ok := officialPricing[model]; ok {
+		return p
+	}
+	// Try prefix match: "claude-opus-4-6-20260206" → "claude-opus-4-6"
+	for prefix, p := range officialPricing {
+		if strings.HasPrefix(model, prefix) {
+			return p
+		}
+	}
+	// Heuristic by model name keywords
+	ml := strings.ToLower(model)
+	switch {
+	case strings.Contains(ml, "opus"):
+		return modelPrice{5, 25, 0.1, 1.25}
+	case strings.Contains(ml, "sonnet"):
+		return modelPrice{3, 15, 0.1, 1.25}
+	case strings.Contains(ml, "haiku"):
+		return modelPrice{1, 5, 0.1, 1.25}
+	case strings.Contains(ml, "gpt-5"):
+		return modelPrice{2.5, 15, 0.1, 0}
+	case strings.Contains(ml, "gemini"):
+		return modelPrice{1.25, 10, 0.1, 0}
+	default:
+		return modelPrice{3, 15, 0.1, 1.25} // default sonnet-level
+	}
 }
 
 func estimateCost(model string, inTok, outTok, cacheRead, cacheWrite int64) float64 {
-	p, ok := modelPricing[model]
-	if !ok {
-		for k, v := range modelPricing {
-			if strings.HasPrefix(model, k) {
-				p = v
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			p = [2]float64{3, 15}
-		}
-	}
-	inCost := float64(inTok) * p[0] / 1_000_000
-	outCost := float64(outTok) * p[1] / 1_000_000
-	cacheRCost := float64(cacheRead) * p[0] * 0.1 / 1_000_000
-	cacheWCost := float64(cacheWrite) * p[0] * 1.25 / 1_000_000
+	p := lookupPrice(model)
+	inCost := float64(inTok) * p.In / 1_000_000
+	outCost := float64(outTok) * p.Out / 1_000_000
+	cacheRCost := float64(cacheRead) * p.In * p.CacheReadRatio / 1_000_000
+	cacheWCost := float64(cacheWrite) * p.In * p.CacheWriteRatio / 1_000_000
 	return inCost + outCost + cacheRCost + cacheWCost
+}
+
+func cleanModelName(model string) string {
+	// "claude-opus-4-6-20260206" → "Claude Opus 4.6"
+	// "gpt-5.4" → "GPT-5.4"
+	m := strings.ToLower(model)
+	switch {
+	case strings.HasPrefix(m, "claude-opus-4-6"):
+		return "Claude Opus 4.6"
+	case strings.HasPrefix(m, "claude-opus-4-5"):
+		return "Claude Opus 4.5"
+	case strings.HasPrefix(m, "claude-opus-4-1"):
+		return "Claude Opus 4.1"
+	case strings.HasPrefix(m, "claude-opus-4"):
+		return "Claude Opus 4"
+	case strings.HasPrefix(m, "claude-sonnet-4-6"):
+		return "Claude Sonnet 4.6"
+	case strings.HasPrefix(m, "claude-sonnet-4-5"):
+		return "Claude Sonnet 4.5"
+	case strings.HasPrefix(m, "claude-sonnet-4"):
+		return "Claude Sonnet 4"
+	case strings.HasPrefix(m, "claude-haiku-4-5"):
+		return "Claude Haiku 4.5"
+	case strings.HasPrefix(m, "claude-4.6-sonnet"):
+		return "Claude Sonnet 4.6"
+	case strings.HasPrefix(m, "gpt-5.4-pro"):
+		return "GPT-5.4 Pro"
+	case strings.HasPrefix(m, "gpt-5.4-mini"):
+		return "GPT-5.4 Mini"
+	case strings.HasPrefix(m, "gpt-5.4"):
+		return "GPT-5.4"
+	case strings.HasPrefix(m, "gpt-5.3-codex"):
+		return "GPT-5.3 Codex"
+	case strings.HasPrefix(m, "gpt-5.2-codex"):
+		return "GPT-5.2 Codex"
+	case strings.HasPrefix(m, "gpt-5.2"):
+		return "GPT-5.2"
+	case strings.HasPrefix(m, "gpt-5.1"):
+		return "GPT-5.1"
+	case strings.HasPrefix(m, "gpt-5-codex"):
+		return "GPT-5 Codex"
+	case strings.HasPrefix(m, "gpt-5"):
+		return "GPT-5"
+	case strings.HasPrefix(m, "gemini-2.5-pro"):
+		return "Gemini 2.5 Pro"
+	case strings.HasPrefix(m, "gemini-2.5-flash"):
+		return "Gemini 2.5 Flash"
+	default:
+		return model
+	}
 }
 
 func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
@@ -185,7 +277,8 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		k := groupModelKey{r.AppType, r.Model}
 		agg, ok := modelAgg[k]
 		if !ok {
-			agg = &TokenStatsModel{Model: r.Model}
+			p := lookupPrice(r.Model)
+			agg = &TokenStatsModel{Model: r.Model, DisplayName: cleanModelName(r.Model), PriceIn: p.In, PriceOut: p.Out}
 			modelAgg[k] = agg
 		}
 		agg.InputTokens += r.InputTokens
@@ -202,10 +295,13 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		summary.TotalCostUsd += agg.TotalCostUsd
 	}
 
-	// Build groups
+	// Build groups - extensible for future tools
 	groupOrder := []struct{ key, label string }{
 		{"claude", "Claude Code"},
 		{"codex", "Codex"},
+		{"gemini", "Gemini CLI"},
+		{"opencode", "OpenCode"},
+		{"openclaw", "OpenClaw"},
 	}
 	var groups []TokenStatsGroup
 	for _, g := range groupOrder {
