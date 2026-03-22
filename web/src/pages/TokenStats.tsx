@@ -63,7 +63,7 @@ export default function TokenStats() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#16192c' }}>用量统计</h1>
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>
-            基于 CC-Switch 代理请求日志
+            基于 Claude Code 本地会话日志（~/.claude/projects/）
           </div>
         </div>
         {/* Time range selector */}
@@ -87,7 +87,7 @@ export default function TokenStats() {
           background: '#fff', borderRadius: 14, border: '1px solid #ececf1',
         }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#ef4444', marginBottom: 8 }}>{error}</div>
-          <div style={{ fontSize: 12 }}>请在设置 → 数据源中配置 CC-Switch 数据库路径</div>
+          <div style={{ fontSize: 12 }}>请确认 Claude Code 已安装并有会话记录</div>
         </div>
       )}
 

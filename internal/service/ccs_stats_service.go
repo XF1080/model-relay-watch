@@ -1,89 +1,64 @@
 package service
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
-
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-// CCS proxy_request_logs row
-type CCSRequestLog struct {
-	RequestID           string  `gorm:"column:request_id"`
-	ProviderID          string  `gorm:"column:provider_id"`
-	AppType             string  `gorm:"column:app_type"`
-	Model               string  `gorm:"column:model"`
-	RequestModel        *string `gorm:"column:request_model"`
-	InputTokens         int     `gorm:"column:input_tokens"`
-	OutputTokens        int     `gorm:"column:output_tokens"`
-	CacheReadTokens     int     `gorm:"column:cache_read_tokens"`
-	CacheCreationTokens int     `gorm:"column:cache_creation_tokens"`
-	InputCostUsd        string  `gorm:"column:input_cost_usd"`
-	OutputCostUsd       string  `gorm:"column:output_cost_usd"`
-	CacheReadCostUsd    string  `gorm:"column:cache_read_cost_usd"`
-	CacheCreationCostUsd string `gorm:"column:cache_creation_cost_usd"`
-	TotalCostUsd        string  `gorm:"column:total_cost_usd"`
-	LatencyMs           int     `gorm:"column:latency_ms"`
-	FirstTokenMs        *int    `gorm:"column:first_token_ms"`
-	DurationMs          *int    `gorm:"column:duration_ms"`
-	StatusCode          int     `gorm:"column:status_code"`
-	IsStreaming         int     `gorm:"column:is_streaming"`
-	CostMultiplier      string  `gorm:"column:cost_multiplier"`
-	CreatedAt           int64   `gorm:"column:created_at"`
+// Parsed from Claude Code JSONL assistant messages
+type ccUsageRecord struct {
+	Model               string
+	InputTokens         int64
+	OutputTokens        int64
+	CacheReadTokens     int64
+	CacheCreationTokens int64
+	Timestamp           time.Time
+	Project             string
+	SessionID           string
 }
 
-type CCSModelPricing struct {
-	ModelID                    string `gorm:"column:model_id"`
-	DisplayName                string `gorm:"column:display_name"`
-	InputCostPerMillion        string `gorm:"column:input_cost_per_million"`
-	OutputCostPerMillion       string `gorm:"column:output_cost_per_million"`
-	CacheReadCostPerMillion    string `gorm:"column:cache_read_cost_per_million"`
-	CacheCreationCostPerMillion string `gorm:"column:cache_creation_cost_per_million"`
-}
-
-// Response types
+// Response types (shared with frontend)
 type TokenStatsSummary struct {
-	TotalInputTokens   int64   `json:"total_input_tokens"`
-	TotalOutputTokens  int64   `json:"total_output_tokens"`
-	TotalCacheRead     int64   `json:"total_cache_read"`
-	TotalCacheWrite    int64   `json:"total_cache_write"`
-	TotalTokens        int64   `json:"total_tokens"`
-	TotalRequests      int     `json:"total_requests"`
-	SuccessRequests    int     `json:"success_requests"`
-	TotalCostUsd       float64 `json:"total_cost_usd"`
+	TotalInputTokens  int64   `json:"total_input_tokens"`
+	TotalOutputTokens int64   `json:"total_output_tokens"`
+	TotalCacheRead    int64   `json:"total_cache_read"`
+	TotalCacheWrite   int64   `json:"total_cache_write"`
+	TotalTokens       int64   `json:"total_tokens"`
+	TotalRequests     int     `json:"total_requests"`
+	TotalCostUsd      float64 `json:"total_cost_usd"`
 }
 
 type TokenStatsModel struct {
-	Model           string  `json:"model"`
-	DisplayName     string  `json:"display_name"`
-	InputTokens     int64   `json:"input_tokens"`
-	OutputTokens    int64   `json:"output_tokens"`
-	CacheReadTokens int64   `json:"cache_read_tokens"`
-	CacheWriteTokens int64  `json:"cache_write_tokens"`
-	Requests        int     `json:"requests"`
-	SuccessReqs     int     `json:"success_reqs"`
-	AvgLatencyMs    int     `json:"avg_latency_ms"`
-	TotalCostUsd    float64 `json:"total_cost_usd"`
+	Model            string  `json:"model"`
+	InputTokens      int64   `json:"input_tokens"`
+	OutputTokens     int64   `json:"output_tokens"`
+	CacheReadTokens  int64   `json:"cache_read_tokens"`
+	CacheWriteTokens int64   `json:"cache_write_tokens"`
+	Requests         int     `json:"requests"`
+	TotalCostUsd     float64 `json:"total_cost_usd"`
 }
 
 type TokenStatsGroup struct {
-	AppType  string            `json:"app_type"`
-	Label    string            `json:"label"`
-	Models   []TokenStatsModel `json:"models"`
-	TotalIn  int64             `json:"total_in"`
-	TotalOut int64             `json:"total_out"`
-	TotalCost float64          `json:"total_cost"`
-	Requests int               `json:"requests"`
+	AppType   string            `json:"app_type"`
+	Label     string            `json:"label"`
+	Models    []TokenStatsModel `json:"models"`
+	TotalIn   int64             `json:"total_in"`
+	TotalOut  int64             `json:"total_out"`
+	TotalCost float64           `json:"total_cost"`
+	Requests  int               `json:"requests"`
 }
 
 type TokenStatsTimeline struct {
-	Time     string `json:"time"`
-	InputT   int64  `json:"input"`
-	OutputT  int64  `json:"output"`
-	Requests int    `json:"requests"`
+	Time     string  `json:"time"`
+	InputT   int64   `json:"input"`
+	OutputT  int64   `json:"output"`
+	Requests int     `json:"requests"`
 	CostUsd  float64 `json:"cost"`
 }
 
@@ -91,183 +66,194 @@ type TokenStatsResponse struct {
 	Summary  TokenStatsSummary    `json:"summary"`
 	Groups   []TokenStatsGroup    `json:"groups"`
 	Timeline []TokenStatsTimeline `json:"timeline"`
-	Pricing  []CCSModelPricing    `json:"pricing"`
 }
 
-func openCCSDB() (*gorm.DB, error) {
-	dbPath := GetSetting("ccs_db_path")
-	if dbPath == "" {
-		return nil, fmt.Errorf("未配置 CC-Switch 数据库路径")
-	}
-	dbPath = strings.ReplaceAll(dbPath, "\\", "/")
-	dsn := dbPath + "?_pragma=query_only(1)"
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("打开 CC-Switch 数据库失败: %w", err)
-	}
-	return db, nil
+// Model pricing (hardcoded for common Claude models, $/million tokens)
+var modelPricing = map[string][2]float64{
+	// [input, output] per million tokens
+	"claude-opus-4-6":              {15, 75},
+	"claude-opus-4-5-20251101":     {5, 25},
+	"claude-sonnet-4-6":            {3, 15},
+	"claude-sonnet-4-5-20250929":   {3, 15},
+	"claude-haiku-4-5-20251001":    {1, 5},
+	"claude-opus-4-20250514":       {15, 75},
+	"claude-opus-4-1-20250805":     {15, 75},
+	"claude-sonnet-4-20250514":     {3, 15},
 }
 
-func GetCCSTokenStats(timeRange string) (*TokenStatsResponse, error) {
-	db, err := openCCSDB()
-	if err != nil {
-		return nil, err
+func estimateCost(model string, inTok, outTok, cacheRead, cacheWrite int64) float64 {
+	p, ok := modelPricing[model]
+	if !ok {
+		// Try prefix match
+		for k, v := range modelPricing {
+			if strings.HasPrefix(model, k) {
+				p = v
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			p = [2]float64{3, 15} // default to sonnet pricing
+		}
 	}
-	sqlDB, _ := db.DB()
-	defer sqlDB.Close()
+	inCost := float64(inTok) * p[0] / 1_000_000
+	outCost := float64(outTok) * p[1] / 1_000_000
+	cacheRCost := float64(cacheRead) * p[0] * 0.1 / 1_000_000
+	cacheWCost := float64(cacheWrite) * p[0] * 1.25 / 1_000_000
+	return inCost + outCost + cacheRCost + cacheWCost
+}
 
-	// Compute time boundary (unix timestamp)
-	var since int64
-	now := time.Now().Unix()
+func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("无法获取用户目录: %w", err)
+	}
+
+	projectsDir := filepath.Join(home, ".claude", "projects")
+	if _, err := os.Stat(projectsDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("未找到 Claude Code 数据目录: %s", projectsDir)
+	}
+
+	// Time boundary
+	var since time.Time
+	now := time.Now()
 	switch timeRange {
 	case "7d":
-		since = now - 7*86400
+		since = now.Add(-7 * 24 * time.Hour)
 	case "30d":
-		since = now - 30*86400
-	default: // 24h
-		since = now - 86400
+		since = now.Add(-30 * 24 * time.Hour)
+	default:
+		since = now.Add(-24 * time.Hour)
 	}
 
-	// Fetch request logs in range
-	var logs []CCSRequestLog
-	if err := db.Raw("SELECT * FROM proxy_request_logs WHERE created_at >= ? ORDER BY created_at ASC", since).Scan(&logs).Error; err != nil {
-		return nil, fmt.Errorf("查询请求日志失败: %w", err)
+	// Scan all JSONL files
+	var records []ccUsageRecord
+	err = filepath.Walk(projectsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+			return nil
+		}
+		// Skip files not modified since 'since' (optimization)
+		if info.ModTime().Before(since) {
+			return nil
+		}
+		// Extract project name from directory
+		rel, _ := filepath.Rel(projectsDir, path)
+		parts := strings.SplitN(filepath.ToSlash(rel), "/", 2)
+		project := parts[0]
+
+		recs, _ := parseJSONLFile(path, since)
+		for i := range recs {
+			recs[i].Project = project
+		}
+		records = append(records, recs...)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("扫描日志目录失败: %w", err)
 	}
 
-	// Fetch pricing
-	var pricing []CCSModelPricing
-	db.Raw("SELECT * FROM model_pricing").Scan(&pricing)
-	priceMap := make(map[string]CCSModelPricing)
-	for _, p := range pricing {
-		priceMap[p.ModelID] = p
-	}
+	// Sort by timestamp
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].Timestamp.Before(records[j].Timestamp)
+	})
 
 	// Build summary
 	var summary TokenStatsSummary
-	summary.TotalRequests = len(logs)
+	summary.TotalRequests = len(records)
 
-	// Group by app_type -> model
-	type modelKey struct{ appType, model string }
-	modelAgg := make(map[modelKey]*TokenStatsModel)
-	appTypes := make(map[string]bool)
+	// Group by model
+	modelAgg := make(map[string]*TokenStatsModel)
+	for _, r := range records {
+		summary.TotalInputTokens += r.InputTokens
+		summary.TotalOutputTokens += r.OutputTokens
+		summary.TotalCacheRead += r.CacheReadTokens
+		summary.TotalCacheWrite += r.CacheCreationTokens
 
-	for _, l := range logs {
-		summary.TotalInputTokens += int64(l.InputTokens)
-		summary.TotalOutputTokens += int64(l.OutputTokens)
-		summary.TotalCacheRead += int64(l.CacheReadTokens)
-		summary.TotalCacheWrite += int64(l.CacheCreationTokens)
-		cost := parseFloat(l.TotalCostUsd)
-		summary.TotalCostUsd += cost
-		if l.StatusCode >= 200 && l.StatusCode < 400 {
-			summary.SuccessRequests++
-		}
-
-		mk := modelKey{l.AppType, l.Model}
-		appTypes[l.AppType] = true
-		agg, ok := modelAgg[mk]
+		agg, ok := modelAgg[r.Model]
 		if !ok {
-			dn := l.Model
-			if p, ok := priceMap[l.Model]; ok && p.DisplayName != "" {
-				dn = p.DisplayName
-			}
-			agg = &TokenStatsModel{Model: l.Model, DisplayName: dn}
-			modelAgg[mk] = agg
+			agg = &TokenStatsModel{Model: r.Model}
+			modelAgg[r.Model] = agg
 		}
-		agg.InputTokens += int64(l.InputTokens)
-		agg.OutputTokens += int64(l.OutputTokens)
-		agg.CacheReadTokens += int64(l.CacheReadTokens)
-		agg.CacheWriteTokens += int64(l.CacheCreationTokens)
+		agg.InputTokens += r.InputTokens
+		agg.OutputTokens += r.OutputTokens
+		agg.CacheReadTokens += r.CacheReadTokens
+		agg.CacheWriteTokens += r.CacheCreationTokens
 		agg.Requests++
-		agg.AvgLatencyMs += l.LatencyMs
-		agg.TotalCostUsd += cost
-		if l.StatusCode >= 200 && l.StatusCode < 400 {
-			agg.SuccessReqs++
-		}
 	}
 	summary.TotalTokens = summary.TotalInputTokens + summary.TotalOutputTokens +
 		summary.TotalCacheRead + summary.TotalCacheWrite
 
-	// Finalize averages
+	// Compute costs
 	for _, agg := range modelAgg {
-		if agg.Requests > 0 {
-			agg.AvgLatencyMs = agg.AvgLatencyMs / agg.Requests
-		}
+		agg.TotalCostUsd = estimateCost(agg.Model, agg.InputTokens, agg.OutputTokens, agg.CacheReadTokens, agg.CacheWriteTokens)
+		summary.TotalCostUsd += agg.TotalCostUsd
 	}
 
-	// Build groups
-	appOrder := []string{"claude", "codex", "gemini"}
-	appLabels := map[string]string{
-		"claude": "Claude", "codex": "Codex", "gemini": "Gemini",
+	// Build single group "Claude Code" with models sorted by total tokens desc
+	var models []TokenStatsModel
+	for _, agg := range modelAgg {
+		models = append(models, *agg)
 	}
-	// Add any app types not in predefined order
-	for at := range appTypes {
-		found := false
-		for _, o := range appOrder {
-			if o == at { found = true; break }
-		}
-		if !found {
-			appOrder = append(appOrder, at)
-			appLabels[at] = at
-		}
-	}
+	sort.Slice(models, func(i, j int) bool {
+		ti := models[i].InputTokens + models[i].OutputTokens + models[i].CacheReadTokens + models[i].CacheWriteTokens
+		tj := models[j].InputTokens + models[j].OutputTokens + models[j].CacheReadTokens + models[j].CacheWriteTokens
+		return ti > tj
+	})
 
 	var groups []TokenStatsGroup
-	for _, at := range appOrder {
-		if !appTypes[at] { continue }
+	if len(models) > 0 {
 		g := TokenStatsGroup{
-			AppType: at,
-			Label:   appLabels[at],
+			AppType: "claude", Label: "Claude Code",
+			Models: models,
 		}
-		for mk, agg := range modelAgg {
-			if mk.appType != at { continue }
-			g.Models = append(g.Models, *agg)
-			g.TotalIn += agg.InputTokens
-			g.TotalOut += agg.OutputTokens
-			g.TotalCost += agg.TotalCostUsd
-			g.Requests += agg.Requests
+		for _, m := range models {
+			g.TotalIn += m.InputTokens
+			g.TotalOut += m.OutputTokens
+			g.TotalCost += m.TotalCostUsd
+			g.Requests += m.Requests
 		}
-		if len(g.Models) > 0 {
-			groups = append(groups, g)
-		}
+		groups = append(groups, g)
 	}
 
 	// Build timeline
 	var timeline []TokenStatsTimeline
-	if len(logs) > 0 {
-		// Determine bucket size
-		var bucketSec int64
+	if len(records) > 0 {
+		var bucketDur time.Duration
 		var timeFmt string
 		switch timeRange {
 		case "30d":
-			bucketSec = 86400 // 1 day
+			bucketDur = 24 * time.Hour
 			timeFmt = "01-02"
 		case "7d":
-			bucketSec = 21600 // 6 hours
+			bucketDur = 6 * time.Hour
 			timeFmt = "01-02 15:04"
-		default: // 24h
-			bucketSec = 3600 // 1 hour
+		default:
+			bucketDur = time.Hour
 			timeFmt = "15:04"
 		}
 
-		// Create buckets
-		bucketStart := (since / bucketSec) * bucketSec
-		bucketEnd := ((now / bucketSec) + 1) * bucketSec
+		bucketSec := int64(bucketDur.Seconds())
+		sinceUnix := since.Unix()
+		nowUnix := now.Unix()
+		bucketStart := (sinceUnix / bucketSec) * bucketSec
+		bucketEnd := ((nowUnix / bucketSec) + 1) * bucketSec
+
 		buckets := make(map[int64]*TokenStatsTimeline)
 		for ts := bucketStart; ts < bucketEnd; ts += bucketSec {
 			t := time.Unix(ts, 0)
 			buckets[ts] = &TokenStatsTimeline{Time: t.Format(timeFmt)}
 		}
 
-		for _, l := range logs {
-			bk := (l.CreatedAt / bucketSec) * bucketSec
+		for _, r := range records {
+			bk := (r.Timestamp.Unix() / bucketSec) * bucketSec
 			b, ok := buckets[bk]
-			if !ok { continue }
-			b.InputT += int64(l.InputTokens)
-			b.OutputT += int64(l.OutputTokens)
+			if !ok {
+				continue
+			}
+			b.InputT += r.InputTokens + r.CacheReadTokens + r.CacheCreationTokens
+			b.OutputT += r.OutputTokens
 			b.Requests++
-			b.CostUsd += parseFloat(l.TotalCostUsd)
+			b.CostUsd += estimateCost(r.Model, r.InputTokens, r.OutputTokens, r.CacheReadTokens, r.CacheCreationTokens)
 		}
 
 		for ts := bucketStart; ts < bucketEnd; ts += bucketSec {
@@ -281,12 +267,81 @@ func GetCCSTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		Summary:  summary,
 		Groups:   groups,
 		Timeline: timeline,
-		Pricing:  pricing,
 	}, nil
 }
 
-func parseFloat(s string) float64 {
-	var f float64
-	fmt.Sscanf(s, "%f", &f)
-	return f
+func parseJSONLFile(path string, since time.Time) ([]ccUsageRecord, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var records []ccUsageRecord
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 5*1024*1024), 5*1024*1024) // 5MB per line
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+
+		// Quick filter: only parse assistant messages with usage
+		if !strings.Contains(string(line), `"assistant"`) {
+			continue
+		}
+
+		var entry struct {
+			Type      string `json:"type"`
+			Timestamp string `json:"timestamp"`
+			SessionID string `json:"sessionId"`
+			Message   struct {
+				Model string         `json:"model"`
+				Usage map[string]any `json:"usage"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(line, &entry); err != nil {
+			continue
+		}
+		if entry.Type != "assistant" || entry.Message.Usage == nil || entry.Message.Model == "" {
+			continue
+		}
+
+		ts, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
+		if err != nil {
+			ts, err = time.Parse("2006-01-02T15:04:05.000Z", entry.Timestamp)
+			if err != nil {
+				continue
+			}
+		}
+		if ts.Before(since) {
+			continue
+		}
+
+		u := entry.Message.Usage
+		r := ccUsageRecord{
+			Model:               entry.Message.Model,
+			InputTokens:         jsonInt64(u, "input_tokens"),
+			OutputTokens:        jsonInt64(u, "output_tokens"),
+			CacheReadTokens:     jsonInt64(u, "cache_read_input_tokens"),
+			CacheCreationTokens: jsonInt64(u, "cache_creation_input_tokens"),
+			Timestamp:           ts,
+			SessionID:           entry.SessionID,
+		}
+		records = append(records, r)
+	}
+	return records, nil
+}
+
+func jsonInt64(m map[string]any, key string) int64 {
+	v, ok := m[key]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	default:
+		return 0
+	}
 }
