@@ -154,53 +154,83 @@ func estimateCost(model string, inTok, outTok, cacheRead, cacheWrite int64) floa
 }
 
 func cleanModelName(model string) string {
-	// "claude-opus-4-6-20260206" → "Claude Opus 4.6"
-	// "gpt-5.4" → "GPT-5.4"
-	m := strings.ToLower(model)
+	// model is already normalized (lowercase, no provider prefix)
 	switch {
-	case strings.HasPrefix(m, "claude-opus-4-6"):
+	case strings.HasPrefix(model, "claude-opus-4-6"):
 		return "Claude Opus 4.6"
-	case strings.HasPrefix(m, "claude-opus-4-5"):
+	case strings.HasPrefix(model, "claude-opus-4-5"):
 		return "Claude Opus 4.5"
-	case strings.HasPrefix(m, "claude-opus-4-1"):
+	case strings.HasPrefix(model, "claude-opus-4-1"):
 		return "Claude Opus 4.1"
-	case strings.HasPrefix(m, "claude-opus-4"):
+	case strings.HasPrefix(model, "claude-opus-4"):
 		return "Claude Opus 4"
-	case strings.HasPrefix(m, "claude-sonnet-4-6"):
+	case strings.HasPrefix(model, "claude-4.6-sonnet"):
 		return "Claude Sonnet 4.6"
-	case strings.HasPrefix(m, "claude-sonnet-4-5"):
+	case strings.HasPrefix(model, "claude-sonnet-4-6"), strings.HasPrefix(model, "claude-sonnet-4.6"):
+		return "Claude Sonnet 4.6"
+	case strings.HasPrefix(model, "claude-sonnet-4-5"):
 		return "Claude Sonnet 4.5"
-	case strings.HasPrefix(m, "claude-sonnet-4"):
+	case strings.HasPrefix(model, "claude-sonnet-4"):
 		return "Claude Sonnet 4"
-	case strings.HasPrefix(m, "claude-haiku-4-5"):
+	case strings.HasPrefix(model, "claude-haiku-4-5"):
 		return "Claude Haiku 4.5"
-	case strings.HasPrefix(m, "claude-4.6-sonnet"):
-		return "Claude Sonnet 4.6"
-	case strings.HasPrefix(m, "gpt-5.4-pro"):
+	case strings.HasPrefix(model, "gpt-5.4-pro"):
 		return "GPT-5.4 Pro"
-	case strings.HasPrefix(m, "gpt-5.4-mini"):
+	case strings.HasPrefix(model, "gpt-5.4-mini"):
 		return "GPT-5.4 Mini"
-	case strings.HasPrefix(m, "gpt-5.4"):
+	case strings.HasPrefix(model, "gpt-5.4"):
 		return "GPT-5.4"
-	case strings.HasPrefix(m, "gpt-5.3-codex"):
+	case strings.HasPrefix(model, "gpt-5.3-codex"):
 		return "GPT-5.3 Codex"
-	case strings.HasPrefix(m, "gpt-5.2-codex"):
+	case strings.HasPrefix(model, "gpt-5.2-codex"):
 		return "GPT-5.2 Codex"
-	case strings.HasPrefix(m, "gpt-5.2"):
+	case strings.HasPrefix(model, "gpt-5.2"):
 		return "GPT-5.2"
-	case strings.HasPrefix(m, "gpt-5.1"):
+	case strings.HasPrefix(model, "gpt-5.1-codex"):
+		return "GPT-5.1 Codex"
+	case strings.HasPrefix(model, "gpt-5.1"):
 		return "GPT-5.1"
-	case strings.HasPrefix(m, "gpt-5-codex"):
+	case strings.HasPrefix(model, "gpt-5-codex"):
 		return "GPT-5 Codex"
-	case strings.HasPrefix(m, "gpt-5"):
+	case strings.HasPrefix(model, "gpt-5"):
 		return "GPT-5"
-	case strings.HasPrefix(m, "gemini-2.5-pro"):
+	case strings.HasPrefix(model, "gemini-2.5-pro"):
 		return "Gemini 2.5 Pro"
-	case strings.HasPrefix(m, "gemini-2.5-flash"):
+	case strings.HasPrefix(model, "gemini-2.5-flash"):
 		return "Gemini 2.5 Flash"
+	case strings.HasPrefix(model, "glm-5"), strings.HasPrefix(model, "glm5"):
+		return "GLM-5"
+	case strings.HasPrefix(model, "minimax-m2.5"):
+		return "MiniMax-M2.5"
+	case strings.HasPrefix(model, "minimax-m2"):
+		return "MiniMax-M2"
+	case strings.HasPrefix(model, "kimi-k2"):
+		return "Kimi-K2"
 	default:
 		return model
 	}
+}
+
+// normalizeModel strips provider prefix, normalizes case, filters invalid names.
+// Returns empty string for invalid models.
+func normalizeModel(raw string) string {
+	m := strings.TrimSpace(raw)
+	if m == "" || strings.HasPrefix(m, "<") {
+		return ""
+	}
+	// Filter obviously invalid names
+	ml := strings.ToLower(m)
+	if ml == "model" || ml == "unknown" || ml == "test" {
+		return ""
+	}
+	// Strip provider prefix: "anthropic/claude-sonnet-4.6" → "claude-sonnet-4.6"
+	if idx := strings.LastIndex(ml, "/"); idx >= 0 {
+		ml = ml[idx+1:]
+	}
+	// Strip trailing parenthesized variants: "gpt-5.4(xhigh)" → "gpt-5.4-xhigh"
+	ml = strings.ReplaceAll(ml, "(", "-")
+	ml = strings.TrimRight(ml, ")")
+	return ml
 }
 
 func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
@@ -263,11 +293,11 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
 
-	// Aggregate
+	// Aggregate by app_type + display_name to merge model variants
 	var summary TokenStatsSummary
 	summary.TotalRequests = len(records)
 
-	type groupModelKey struct{ appType, model string }
+	type groupModelKey struct{ appType, displayName string }
 	modelAgg := make(map[groupModelKey]*TokenStatsModel)
 	appTypes := make(map[string]bool)
 
@@ -278,11 +308,12 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		summary.TotalCacheWrite += r.CacheCreationTokens
 		appTypes[r.AppType] = true
 
-		k := groupModelKey{r.AppType, r.Model}
+		dn := cleanModelName(r.Model)
+		k := groupModelKey{r.AppType, dn}
 		agg, ok := modelAgg[k]
 		if !ok {
 			p := lookupPrice(r.Model)
-			agg = &TokenStatsModel{Model: r.Model, DisplayName: cleanModelName(r.Model), PriceIn: p.In, PriceOut: p.Out}
+			agg = &TokenStatsModel{Model: r.Model, DisplayName: dn, PriceIn: p.In, PriceOut: p.Out}
 			modelAgg[k] = agg
 		}
 		agg.InputTokens += r.InputTokens
@@ -426,7 +457,8 @@ func parseClaudeJSONL(path string, since time.Time) ([]usageRecord, error) {
 		if entry.Type != "assistant" || entry.Message.Usage == nil || entry.Message.Model == "" {
 			continue
 		}
-		if strings.HasPrefix(entry.Message.Model, "<") {
+		modelName := normalizeModel(entry.Message.Model)
+		if modelName == "" {
 			continue
 		}
 		ts, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
@@ -440,13 +472,20 @@ func parseClaudeJSONL(path string, since time.Time) ([]usageRecord, error) {
 			continue
 		}
 		u := entry.Message.Usage
+		inTok := jsonInt64(u, "input_tokens")
+		outTok := jsonInt64(u, "output_tokens")
+		cacheR := jsonInt64(u, "cache_read_input_tokens")
+		cacheW := jsonInt64(u, "cache_creation_input_tokens")
+		if inTok+outTok+cacheR+cacheW == 0 {
+			continue
+		}
 		records = append(records, usageRecord{
 			AppType:             "claude",
-			Model:               entry.Message.Model,
-			InputTokens:         jsonInt64(u, "input_tokens"),
-			OutputTokens:        jsonInt64(u, "output_tokens"),
-			CacheReadTokens:     jsonInt64(u, "cache_read_input_tokens"),
-			CacheCreationTokens: jsonInt64(u, "cache_creation_input_tokens"),
+			Model:               modelName,
+			InputTokens:         inTok,
+			OutputTokens:        outTok,
+			CacheReadTokens:     cacheR,
+			CacheCreationTokens: cacheW,
 			Timestamp:           ts,
 		})
 	}
@@ -526,17 +565,23 @@ func parseCodexJSONL(path string, since time.Time) ([]usageRecord, error) {
 		}
 
 		u := ev.Payload.Info.LastTokenUsage
-		model := currentModel
-		if model == "" {
-			model = "unknown"
+		modelName := normalizeModel(currentModel)
+		if modelName == "" {
+			continue
+		}
+		inTok := u.InputTokens
+		outTok := u.OutputTokens + u.ReasoningOutputTokens
+		cacheR := u.CachedInputTokens
+		if inTok+outTok+cacheR == 0 {
+			continue
 		}
 
 		records = append(records, usageRecord{
 			AppType:         "codex",
-			Model:           model,
-			InputTokens:     u.InputTokens,
-			OutputTokens:    u.OutputTokens + u.ReasoningOutputTokens,
-			CacheReadTokens: u.CachedInputTokens,
+			Model:           modelName,
+			InputTokens:     inTok,
+			OutputTokens:    outTok,
+			CacheReadTokens: cacheR,
 			Timestamp:       ts,
 		})
 	}
