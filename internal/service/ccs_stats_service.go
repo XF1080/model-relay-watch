@@ -37,6 +37,7 @@ type TokenStatsSummary struct {
 type TokenStatsModel struct {
 	Model            string  `json:"model"`
 	DisplayName      string  `json:"display_name"`
+	Provider         string  `json:"provider"` // anthropic, openai, google, zhipu, minimax, moonshot, other
 	InputTokens      int64   `json:"input_tokens"`
 	OutputTokens     int64   `json:"output_tokens"`
 	CacheReadTokens  int64   `json:"cache_read_tokens"`
@@ -233,6 +234,30 @@ func normalizeModel(raw string) string {
 	return ml
 }
 
+// detectProvider determines the API provider from the normalized model name
+func detectProvider(model string) string {
+	switch {
+	case strings.HasPrefix(model, "claude"):
+		return "anthropic"
+	case strings.HasPrefix(model, "gpt-"), strings.HasPrefix(model, "o1"), strings.HasPrefix(model, "o3"), strings.HasPrefix(model, "o4"):
+		return "openai"
+	case strings.HasPrefix(model, "gemini"):
+		return "google"
+	case strings.HasPrefix(model, "glm"):
+		return "zhipu"
+	case strings.HasPrefix(model, "minimax"):
+		return "minimax"
+	case strings.HasPrefix(model, "kimi"):
+		return "moonshot"
+	case strings.HasPrefix(model, "deepseek"):
+		return "deepseek"
+	case strings.HasPrefix(model, "qwen"):
+		return "alibaba"
+	default:
+		return "other"
+	}
+}
+
 func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -313,7 +338,7 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		agg, ok := modelAgg[k]
 		if !ok {
 			p := lookupPrice(r.Model)
-			agg = &TokenStatsModel{Model: r.Model, DisplayName: dn, PriceIn: p.In, PriceOut: p.Out}
+			agg = &TokenStatsModel{Model: r.Model, DisplayName: dn, Provider: detectProvider(r.Model), PriceIn: p.In, PriceOut: p.Out}
 			modelAgg[k] = agg
 		}
 		agg.InputTokens += r.InputTokens
@@ -371,7 +396,17 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 			grp.TotalCost += agg.TotalCostUsd
 			grp.Requests += agg.Requests
 		}
+		// Sort by provider group, then by token count within each provider
+		providerOrder := map[string]int{
+			"anthropic": 0, "openai": 1, "google": 2, "deepseek": 3,
+			"zhipu": 4, "minimax": 5, "moonshot": 6, "alibaba": 7, "other": 8,
+		}
 		sort.Slice(grp.Models, func(i, j int) bool {
+			pi := providerOrder[grp.Models[i].Provider]
+			pj := providerOrder[grp.Models[j].Provider]
+			if pi != pj {
+				return pi < pj
+			}
 			ti := grp.Models[i].InputTokens + grp.Models[i].OutputTokens + grp.Models[i].CacheReadTokens + grp.Models[i].CacheWriteTokens
 			tj := grp.Models[j].InputTokens + grp.Models[j].OutputTokens + grp.Models[j].CacheReadTokens + grp.Models[j].CacheWriteTokens
 			return ti > tj

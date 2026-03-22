@@ -9,6 +9,19 @@ const groupConfig: Record<string, { label: string; color: string; icon: string }
   opencode: { label: 'OpenCode',    color: '#10a37f', icon: 'O' },
   openclaw: { label: 'OpenClaw',    color: '#ef4444', icon: 'W' },
 };
+
+/* ─── Provider config ─── */
+const providerConfig: Record<string, { label: string; color: string }> = {
+  anthropic: { label: 'Anthropic', color: '#d97706' },
+  openai:    { label: 'OpenAI',    color: '#10a37f' },
+  google:    { label: 'Google',    color: '#4285f4' },
+  deepseek:  { label: 'DeepSeek',  color: '#6366f1' },
+  zhipu:     { label: '智谱 AI',   color: '#2563eb' },
+  minimax:   { label: 'MiniMax',   color: '#8b5cf6' },
+  moonshot:  { label: 'Moonshot',  color: '#f59e0b' },
+  alibaba:   { label: '阿里云',    color: '#ff6a00' },
+  other:     { label: '其他',      color: '#9ca3af' },
+};
 const defaultGroup = { label: '其他', color: '#9ca3af', icon: '?' };
 
 function fmt(n: number): string {
@@ -245,51 +258,94 @@ export default function TokenStats() {
                 <span style={{ paddingLeft: 16 }}>占比</span>
               </div>
 
-              {/* Model rows */}
-              {(g.models || []).map((m: any, idx: number) => {
-                const mTotal = m.input_tokens + m.output_tokens + (m.cache_read_tokens || 0) + (m.cache_write_tokens || 0);
-                const pct = allTokens > 0 ? (mTotal / allTokens) * 100 : 0;
-                return (
-                  <div key={m.model} style={{
-                    display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px 3fr',
-                    padding: '10px 20px', alignItems: 'center', fontSize: 13,
-                    borderBottom: idx < (g.models || []).length - 1 ? '1px solid #f9fafb' : 'none',
-                    transition: 'background .1s',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#fafbfc'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; }}
-                  >
-                    {/* Model name */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                      <span style={{ fontWeight: 600, color: '#16192c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {m.display_name || m.model}
-                      </span>
-                      <span style={{ fontSize: 10, color: '#bbb', flexShrink: 0 }}>{m.requests.toLocaleString()}次</span>
+              {/* Model rows with provider sub-groups */}
+              {(() => {
+                const models = g.models || [];
+                // Group models by provider
+                const providerGroups: { provider: string; models: any[] }[] = [];
+                let lastProvider = '';
+                for (const m of models) {
+                  const p = m.provider || 'other';
+                  if (p !== lastProvider) {
+                    providerGroups.push({ provider: p, models: [] });
+                    lastProvider = p;
+                  }
+                  providerGroups[providerGroups.length - 1].models.push(m);
+                }
+                const showProviderHeaders = providerGroups.length > 1;
+
+                return providerGroups.map((pg) => {
+                  const pcfg = providerConfig[pg.provider] || { label: pg.provider, color: '#9ca3af' };
+                  const pgTotal = pg.models.reduce((s: number, m: any) =>
+                    s + m.input_tokens + m.output_tokens + (m.cache_read_tokens || 0) + (m.cache_write_tokens || 0), 0);
+                  const pgCost = pg.models.reduce((s: number, m: any) => s + (m.total_cost_usd || 0), 0);
+                  const pgReqs = pg.models.reduce((s: number, m: any) => s + m.requests, 0);
+
+                  return (
+                    <div key={pg.provider}>
+                      {showProviderHeaders && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 20px',
+                          background: '#f8f9fa', borderBottom: '1px solid #f3f4f6',
+                        }}>
+                          <span style={{
+                            width: 6, height: 6, borderRadius: '50%', background: pcfg.color,
+                            display: 'inline-block', flexShrink: 0,
+                          }} />
+                          <span style={{ fontSize: 12, fontWeight: 700, color: pcfg.color }}>{pcfg.label}</span>
+                          <span style={{ fontSize: 10, color: '#9ca3af' }}>
+                            {pgReqs.toLocaleString()} 次 · {fmt(pgTotal)} tokens · {fmtCost(pgCost)}
+                          </span>
+                        </div>
+                      )}
+                      {pg.models.map((m: any, idx: number) => {
+                        const mTotal = m.input_tokens + m.output_tokens + (m.cache_read_tokens || 0) + (m.cache_write_tokens || 0);
+                        const pct = allTokens > 0 ? (mTotal / allTokens) * 100 : 0;
+                        return (
+                          <div key={m.model + m.display_name} style={{
+                            display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px 3fr',
+                            padding: '10px 20px', alignItems: 'center', fontSize: 13,
+                            borderBottom: idx < pg.models.length - 1 ? '1px solid #f9fafb' : '1px solid #f3f4f6',
+                            transition: 'background .1s',
+                          }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#fafbfc'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                          >
+                            {/* Model name */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                              <span style={{ fontWeight: 600, color: '#16192c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {m.display_name || m.model}
+                              </span>
+                              <span style={{ fontSize: 10, color: '#bbb', flexShrink: 0 }}>{m.requests.toLocaleString()}次</span>
+                            </div>
+                            {/* Input */}
+                            <span style={{ textAlign: 'right', color: '#3b82f6', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>{fmt(m.input_tokens)}</span>
+                            {/* Output */}
+                            <span style={{ textAlign: 'right', color: '#22c55e', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>{fmt(m.output_tokens)}</span>
+                            {/* Cache */}
+                            <span style={{ textAlign: 'right', color: '#8b5cf6', fontFamily: 'monospace', fontSize: 12 }}>
+                              {(m.cache_read_tokens || 0) > 0 ? fmt(m.cache_read_tokens) : '-'}
+                            </span>
+                            {/* Cost */}
+                            <span style={{ textAlign: 'right', fontWeight: 700, color: '#16192c', fontSize: 12 }}>{fmtCost(m.total_cost_usd)}</span>
+                            {/* Unit price */}
+                            <span style={{ textAlign: 'right', fontSize: 10, color: '#bbb' }}>
+                              {m.price_in > 0 ? `$${m.price_in}/$${m.price_out}` : '-'}
+                            </span>
+                            {/* Proportion bar */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 16 }}>
+                              <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: Math.min(pct, 100) + '%', background: cfg.color, borderRadius: 3, transition: 'width .3s' }} />
+                              </div>
+                              <span style={{ fontSize: 10, color: '#9ca3af', width: 36, textAlign: 'right', flexShrink: 0 }}>{pct.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    {/* Input */}
-                    <span style={{ textAlign: 'right', color: '#3b82f6', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>{fmt(m.input_tokens)}</span>
-                    {/* Output */}
-                    <span style={{ textAlign: 'right', color: '#22c55e', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>{fmt(m.output_tokens)}</span>
-                    {/* Cache */}
-                    <span style={{ textAlign: 'right', color: '#8b5cf6', fontFamily: 'monospace', fontSize: 12 }}>
-                      {(m.cache_read_tokens || 0) > 0 ? fmt(m.cache_read_tokens) : '-'}
-                    </span>
-                    {/* Cost */}
-                    <span style={{ textAlign: 'right', fontWeight: 700, color: '#16192c', fontSize: 12 }}>{fmtCost(m.total_cost_usd)}</span>
-                    {/* Unit price */}
-                    <span style={{ textAlign: 'right', fontSize: 10, color: '#bbb' }}>
-                      {m.price_in > 0 ? `$${m.price_in}/$${m.price_out}` : '-'}
-                    </span>
-                    {/* Proportion bar */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 16 }}>
-                      <div style={{ flex: 1, height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: Math.min(pct, 100) + '%', background: cfg.color, borderRadius: 3, transition: 'width .3s' }} />
-                      </div>
-                      <span style={{ fontSize: 10, color: '#9ca3af', width: 36, textAlign: 'right', flexShrink: 0 }}>{pct.toFixed(1)}%</span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           );
         })}
