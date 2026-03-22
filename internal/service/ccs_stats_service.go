@@ -450,37 +450,7 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 				sources = append(sources, src)
 			}
 		}
-		// If only one source, don't split
-		if len(sources) <= 1 {
-			grp := TokenStatsGroup{AppType: g.key, Label: g.label}
-			if ep, ok := endpointMap[g.key]; ok && ep != "" {
-				grp.EndpointURL = ep
-				if chID, chName := matchChannel(ep); chID > 0 {
-					grp.ChannelID = chID
-					grp.ChannelName = chName
-				}
-			}
-			for k, agg := range modelAgg {
-				if k.appType != g.key {
-					continue
-				}
-				total := agg.InputTokens + agg.OutputTokens + agg.CacheReadTokens + agg.CacheWriteTokens
-				if total == 0 {
-					continue
-				}
-				grp.Models = append(grp.Models, *agg)
-				grp.TotalIn += agg.InputTokens
-				grp.TotalOut += agg.OutputTokens
-				grp.TotalCost += agg.TotalCostUsd
-				grp.Requests += agg.Requests
-			}
-			sortModels(grp.Models)
-			if len(grp.Models) > 0 {
-				groups = append(groups, grp)
-			}
-			continue
-		}
-		// Multiple sources: create one group per source
+		// Always create one group per source
 		for _, src := range sources {
 			grp := TokenStatsGroup{
 				AppType:        g.key,
