@@ -105,8 +105,7 @@ export default function TokenStats() {
             sub={summary.total_cache_read > 0 ? `缓存读取 ${fmtTokens(summary.total_cache_read)}` : undefined} />
           <SummaryCard label="输出 Token" value={fmtTokens(summary.total_output_tokens)} color="#22c55e"
             sub={summary.total_cache_write > 0 ? `缓存写入 ${fmtTokens(summary.total_cache_write)}` : undefined} />
-          <SummaryCard label="估算费用" value={fmtCost(summary.total_cost_usd)} color="#f97316"
-            sub={`成功率 ${summary.total_requests ? Math.round(summary.success_requests / summary.total_requests * 100) : 0}%`} />
+          <SummaryCard label="估算费用" value={fmtCost(summary.total_cost_usd)} color="#f97316" />
         </div>
 
         {/* Timeline */}
@@ -222,10 +221,9 @@ export default function TokenStats() {
                         </div>
                         <div style={{
                           fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
-                          background: m.success_reqs === m.requests ? '#ecfdf5' : '#fef2f2',
-                          color: m.success_reqs === m.requests ? '#22c55e' : '#ef4444',
+                          background: '#f3f4f6', color: '#9ca3af',
                         }}>
-                          {m.requests > 0 ? Math.round(m.success_reqs / m.requests * 100) : 0}%
+                          {m.requests} 次
                         </div>
                       </div>
 
