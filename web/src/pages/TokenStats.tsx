@@ -230,12 +230,6 @@ export default function TokenStats() {
                 }}>{cfg.icon}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{cfg.label}</span>
-                  {g.api_source_label && (
-                    <span style={{
-                      fontSize: 10, color: '#fff', fontWeight: 700,
-                      background: '#6366f1', padding: '2px 7px', borderRadius: 4,
-                    }}>{g.api_source_label}</span>
-                  )}
                 </div>
                 <span style={{ fontSize: 12, color: '#9ca3af' }}>
                   {g.requests.toLocaleString()} 次 &middot; {fmt(g.total_in + g.total_out)} tokens &middot; {fmtCost(g.total_cost)}

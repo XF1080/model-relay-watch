@@ -377,16 +377,13 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
 
-	// Aggregate by app_type + api_source + display_name to distinguish different APIs
+	// Aggregate by app_type + display_name (merge across API sources)
 	var summary TokenStatsSummary
 	summary.TotalRequests = len(records)
 
-	type groupModelKey struct{ appType, apiSource, displayName string }
+	type groupModelKey struct{ appType, displayName string }
 	modelAgg := make(map[groupModelKey]*TokenStatsModel)
 	appTypes := make(map[string]bool)
-	// Track unique (appType, apiSource) combos
-	type appSourceKey struct{ appType, apiSource string }
-	appSources := make(map[appSourceKey]bool)
 
 	for _, r := range records {
 		summary.TotalInputTokens += r.InputTokens
@@ -394,14 +391,13 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		summary.TotalCacheRead += r.CacheReadTokens
 		summary.TotalCacheWrite += r.CacheCreationTokens
 		appTypes[r.AppType] = true
-		appSources[appSourceKey{r.AppType, r.APISource}] = true
 
 		dn := cleanModelName(r.Model)
-		k := groupModelKey{r.AppType, r.APISource, dn}
+		k := groupModelKey{r.AppType, dn}
 		agg, ok := modelAgg[k]
 		if !ok {
 			p := lookupPrice(r.Model)
-			agg = &TokenStatsModel{Model: r.Model, DisplayName: dn, Provider: detectProvider(r.Model), APISource: r.APISource, PriceIn: p.In, PriceOut: p.Out}
+			agg = &TokenStatsModel{Model: r.Model, DisplayName: dn, Provider: detectProvider(r.Model), PriceIn: p.In, PriceOut: p.Out}
 			modelAgg[k] = agg
 		}
 		agg.InputTokens += r.InputTokens
@@ -418,7 +414,7 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		summary.TotalCostUsd += agg.TotalCostUsd
 	}
 
-	// Build groups split by (appType, apiSource)
+	// Build groups — one group per tool
 	groupOrder := []struct{ key, label string }{
 		{"claude", "Claude Code"},
 		{"codex", "Codex"},
@@ -426,46 +422,30 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		{"opencode", "OpenCode"},
 		{"openclaw", "OpenClaw"},
 	}
-	apiSourceOrder := []string{"anthropic", "openai", "openai-responses", "proxy", "unknown"}
 
 	var groups []TokenStatsGroup
 	for _, g := range groupOrder {
 		if !appTypes[g.key] {
 			continue
 		}
-		// Find which API sources this tool has
-		var sources []string
-		for _, src := range apiSourceOrder {
-			if appSources[appSourceKey{g.key, src}] {
-				sources = append(sources, src)
+		grp := TokenStatsGroup{AppType: g.key, Label: g.label}
+		for k, agg := range modelAgg {
+			if k.appType != g.key {
+				continue
 			}
+			total := agg.InputTokens + agg.OutputTokens + agg.CacheReadTokens + agg.CacheWriteTokens
+			if total == 0 {
+				continue
+			}
+			grp.Models = append(grp.Models, *agg)
+			grp.TotalIn += agg.InputTokens
+			grp.TotalOut += agg.OutputTokens
+			grp.TotalCost += agg.TotalCostUsd
+			grp.Requests += agg.Requests
 		}
-		// Always create one group per source
-		for _, src := range sources {
-			grp := TokenStatsGroup{
-				AppType:        g.key,
-				Label:          g.label,
-				APISource:      src,
-				APISourceLabel: apiSourceLabel(src),
-			}
-			for k, agg := range modelAgg {
-				if k.appType != g.key || k.apiSource != src {
-					continue
-				}
-				total := agg.InputTokens + agg.OutputTokens + agg.CacheReadTokens + agg.CacheWriteTokens
-				if total == 0 {
-					continue
-				}
-				grp.Models = append(grp.Models, *agg)
-				grp.TotalIn += agg.InputTokens
-				grp.TotalOut += agg.OutputTokens
-				grp.TotalCost += agg.TotalCostUsd
-				grp.Requests += agg.Requests
-			}
-			sortModels(grp.Models)
-			if len(grp.Models) > 0 {
-				groups = append(groups, grp)
-			}
+		sortModels(grp.Models)
+		if len(grp.Models) > 0 {
+			groups = append(groups, grp)
 		}
 	}
 
