@@ -394,7 +394,14 @@ function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck, te
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
-            onClick={e => { e.stopPropagation(); onTestGroup(group.channels.map(c => c.model_id)); }}
+            onClick={e => {
+              e.stopPropagation();
+              const checkedInGroup = group.channels.filter(c => selected.has(c.model_id));
+              const ids = checkedInGroup.length > 0
+                ? checkedInGroup.map(c => c.model_id)
+                : group.channels.map(c => c.model_id);
+              onTestGroup(ids);
+            }}
             disabled={testing}
             style={{
               height: 28, padding: '0 14px', borderRadius: 7, fontSize: 11, fontWeight: 600,
@@ -405,7 +412,10 @@ function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck, te
             }}
             onMouseEnter={e => { if (!testing) { e.currentTarget.style.background = '#6366f1'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#6366f1'; } }}
             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.borderColor = '#ececf1'; }}
-          >▶ 测试</button>
+          >{(() => {
+            const cnt = group.channels.filter(c => selected.has(c.model_id)).length;
+            return cnt > 0 ? `▶ 测试 (${cnt})` : '▶ 测试';
+          })()}</button>
           {best && (
             <>
               <span style={{ color: '#9ca3af', fontWeight: 500, fontSize: 12 }}>推荐</span>

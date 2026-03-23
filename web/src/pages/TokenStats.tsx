@@ -402,6 +402,8 @@ export default function TokenStats() {
     { key: '24h', label: '24 小时' },
     { key: '7d',  label: '7 天' },
     { key: '30d', label: '30 天' },
+    { key: '90d', label: '90 天' },
+    { key: 'all', label: '全部' },
   ];
 
   const gridCols = '2fr 70px 1fr 1fr 1fr 1fr 80px 3fr';

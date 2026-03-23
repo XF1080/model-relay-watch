@@ -374,6 +374,10 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		since = now.Add(-7 * 24 * time.Hour)
 	case "30d":
 		since = now.Add(-30 * 24 * time.Hour)
+	case "90d":
+		since = now.Add(-90 * 24 * time.Hour)
+	case "all":
+		since = time.Time{} // zero time = no filter
 	default:
 		since = now.Add(-24 * time.Hour)
 	}
@@ -498,6 +502,9 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 	var bucketSec int64
 	var timeFmt string
 	switch timeRange {
+	case "90d", "all":
+		bucketSec = 86400
+		timeFmt = "01-02"
 	case "30d":
 		bucketSec = 86400
 		timeFmt = "01-02"
