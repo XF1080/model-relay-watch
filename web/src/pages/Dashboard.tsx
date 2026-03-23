@@ -360,13 +360,15 @@ function SortableHeader({ label, colKey, sortKey, sortDir, onSort }: {
 }
 
 /* ─── Model Group Component ──────────────── */
-function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck }: {
+function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck, testing, onTestGroup }: {
   group: ModelGroup;
   sortKey: SortKey;
   sortDir: SortDir;
   onSort: (key: SortKey) => void;
   selected: Set<number>;
   onCheck: (id: number) => void;
+  testing: boolean;
+  onTestGroup: (ids: number[]) => void;
 }) {
   const [open, setOpen] = useState(true);
   const sorted = sortChannels(group.channels, sortKey, sortDir);
@@ -390,16 +392,31 @@ function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck }: 
             background: 'rgba(99,102,241,0.08)', color: '#6366f1',
           }}>{onlineCount}/{sorted.length} 可用</span>
         </div>
-        {best && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <span style={{ color: '#9ca3af', fontWeight: 500 }}>推荐</span>
-            <span style={{ color: '#22c55e', fontWeight: 700 }}>{best.channel_name}</span>
-            <span style={{
-              padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
-              background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-            }}>{fmtMs(best.avg_latency_ms)}</span>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={e => { e.stopPropagation(); onTestGroup(group.channels.map(c => c.model_id)); }}
+            disabled={testing}
+            style={{
+              height: 28, padding: '0 14px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+              cursor: testing ? 'not-allowed' : 'pointer', border: '1px solid #ececf1',
+              background: '#fff', color: '#6366f1', transition: 'all 0.15s',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              opacity: testing ? 0.6 : 1,
+            }}
+            onMouseEnter={e => { if (!testing) { e.currentTarget.style.background = '#6366f1'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#6366f1'; } }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.borderColor = '#ececf1'; }}
+          >▶ 测试</button>
+          {best && (
+            <>
+              <span style={{ color: '#9ca3af', fontWeight: 500, fontSize: 12 }}>推荐</span>
+              <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 12 }}>{best.channel_name}</span>
+              <span style={{
+                padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+              }}>{fmtMs(best.avg_latency_ms)}</span>
+            </>
+          )}
+        </div>
       </div>
       {open && (
         <>
@@ -683,6 +700,16 @@ function MonitorPanel() {
     }
   };
 
+  const handleTestGroup = async (ids: number[]) => {
+    setTesting(true);
+    try {
+      await testBatch(ids);
+      Toast.success(`已启动 ${ids.length} 个通道的测试`);
+    } catch (e: any) {
+      Toast.error(e.response?.data?.error || '测试失败');
+    }
+  };
+
   // Test button label
   const visibleModelCount = groups.flatMap(g => g.channels).length;
   const testBtnLabel = testing
@@ -836,7 +863,7 @@ function MonitorPanel() {
           {models.length === 0 ? '暂无数据，请先发现模型并执行测试' : '未找到匹配的模型'}
         </div>
       ) : (
-        groups.map(g => <ModelGroupCard key={g.model} group={g} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} selected={selected} onCheck={toggleCheck} />)
+        groups.map(g => <ModelGroupCard key={g.model} group={g} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} selected={selected} onCheck={toggleCheck} testing={testing} onTestGroup={handleTestGroup} />)
       )}
     </div>
   );
