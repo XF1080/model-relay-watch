@@ -63,3 +63,11 @@ export const syncCCSProviders = () =>
 // Token Stats (from CCS proxy_request_logs)
 export const getTokenStats = (range: string) =>
   api.get<any>('/stats/tokens', { params: { range } }).then(r => r.data);
+
+// Pricing
+export const getPricing = () =>
+  api.get<{ official: any[]; custom: any[] }>('/pricing').then(r => r.data);
+export const savePricing = (items: any[]) =>
+  api.put('/pricing', items);
+export const deletePricing = (key: string) =>
+  api.delete(`/pricing/${encodeURIComponent(key)}`);

@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
-import { getTokenStats } from '../api/client';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { getTokenStats, getPricing, savePricing, deletePricing } from '../api/client';
 
-/* ─── Group config ─── */
+/* --- Group config --- */
 const groupConfig: Record<string, { label: string; color: string; icon: string }> = {
   claude:   { label: 'Claude Code', color: '#d97706', icon: 'C' },
   codex:    { label: 'Codex',       color: '#6e56cf', icon: 'X' },
@@ -10,7 +10,7 @@ const groupConfig: Record<string, { label: string; color: string; icon: string }
   openclaw: { label: 'OpenClaw',    color: '#ef4444', icon: 'W' },
 };
 
-/* ─── Provider config ─── */
+/* --- Provider config --- */
 const providerConfig: Record<string, { label: string; color: string }> = {
   anthropic: { label: 'Anthropic', color: '#d97706' },
   openai:    { label: 'OpenAI',    color: '#10a37f' },
@@ -36,28 +36,235 @@ function fmtCost(n: number): string {
   return '$' + n.toFixed(2);
 }
 
+/* --- Chart Tooltip --- */
+function ChartTooltip({ data, barRef }: { data: any; barRef: HTMLDivElement }) {
+  const [pos, setPos] = useState({ left: 0, top: 0 });
+  const tipRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const rect = barRef.getBoundingClientRect();
+    const parentRect = barRef.closest('[data-chart-container]')?.getBoundingClientRect();
+    if (!parentRect) return;
+    const left = rect.left - parentRect.left + rect.width / 2;
+    const top = rect.top - parentRect.top - 8;
+    setPos({ left, top });
+  }, [barRef]);
+
+  return (
+    <div ref={tipRef} style={{
+      position: 'absolute', zIndex: 50, pointerEvents: 'none',
+      left: pos.left, top: pos.top, transform: 'translate(-50%, -100%)',
+    }}>
+      <div style={{
+        background: '#1f2937', color: '#fff', borderRadius: 8, padding: '8px 12px',
+        fontSize: 11, lineHeight: 1.6, whiteSpace: 'nowrap',
+        boxShadow: '0 4px 12px rgba(0,0,0,.2)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 2 }}>{data.time}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 6, height: 6, borderRadius: 1, background: '#3b82f6', display: 'inline-block' }} />
+          输入: <span style={{ fontWeight: 600 }}>{fmt(data.input || 0)}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 6, height: 6, borderRadius: 1, background: '#22c55e', display: 'inline-block' }} />
+          输出: <span style={{ fontWeight: 600 }}>{fmt(data.output || 0)}</span>
+        </div>
+        <div style={{ color: '#9ca3af' }}>请求: {data.requests}  费用: {fmtCost(data.cost)}</div>
+      </div>
+      <div style={{
+        width: 0, height: 0, margin: '0 auto',
+        borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
+        borderTop: '5px solid #1f2937',
+      }} />
+    </div>
+  );
+}
+
+/* --- Pricing Modal --- */
+function PricingModal({ onClose }: { onClose: () => void }) {
+  const [official, setOfficial] = useState<any[]>([]);
+  const [custom, setCustom] = useState<any[]>([]);
+  const [edits, setEdits] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getPricing().then(d => {
+      setOfficial(d.official || []);
+      setCustom(d.custom || []);
+      const m: Record<string, any> = {};
+      for (const c of (d.custom || [])) m[c.model_key] = c;
+      setEdits(m);
+    });
+  }, []);
+
+  const merged = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const o of official) {
+      map.set(o.model_key, { ...o, isCustom: false });
+    }
+    for (const c of custom) {
+      if (map.has(c.model_key)) {
+        map.set(c.model_key, { ...c, isCustom: true });
+      } else {
+        map.set(c.model_key, { ...c, isCustom: true });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.model_key.localeCompare(b.model_key));
+  }, [official, custom]);
+
+  const getEdit = (key: string) => edits[key];
+  const setField = (key: string, field: string, val: string) => {
+    const num = parseFloat(val);
+    if (isNaN(num) && val !== '') return;
+    const base = edits[key] || official.find(o => o.model_key === key) || {};
+    setEdits(prev => ({ ...prev, [key]: { ...base, model_key: key, [field]: val === '' ? 0 : num } }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const items = Object.values(edits).filter(e => e.model_key);
+    try {
+      await savePricing(items);
+      onClose();
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  const handleReset = async (key: string) => {
+    try {
+      await deletePricing(key);
+      setEdits(prev => { const n = { ...prev }; delete n[key]; return n; });
+      setCustom(prev => prev.filter(c => c.model_key !== key));
+    } catch { /* ignore */ }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: 70, height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid #e5e7eb',
+    fontSize: 12, textAlign: 'right', outline: 'none', fontFamily: 'monospace',
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(2px)',
+    }} onClick={onClose}>
+      <div style={{
+        background: '#fff', borderRadius: 16, width: 720, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 20px 60px rgba(0,0,0,.15)',
+      }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{
+          padding: '18px 24px', borderBottom: '1px solid #f0f0f0',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#16192c' }}>定价设置</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>单位: $/百万 tokens, 自定义定价优先于官方默认</div>
+          </div>
+          <button onClick={onClose} style={{
+            width: 30, height: 30, borderRadius: 8, border: 'none', background: '#f3f4f6',
+            fontSize: 14, cursor: 'pointer', color: '#6b7280',
+          }}>x</button>
+        </div>
+
+        {/* Table */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '0 24px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+                {['模型', '输入价格', '输出价格', '缓存读取比', '缓存写入比', ''].map((h, i) => (
+                  <th key={i} style={{
+                    padding: '10px 4px', textAlign: i === 0 ? 'left' : 'right',
+                    fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase',
+                    borderBottom: '1px solid #f0f0f0', letterSpacing: .3,
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {merged.map(item => {
+                const edit = getEdit(item.model_key);
+                const isEdited = !!edit;
+                return (
+                  <tr key={item.model_key} style={{ borderBottom: '1px solid #f9fafb' }}>
+                    <td style={{ padding: '8px 4px', fontWeight: 600, color: isEdited ? '#6366f1' : '#16192c' }}>
+                      {item.model_key}
+                      {item.isCustom && <span style={{ marginLeft: 4, fontSize: 9, color: '#6366f1', background: '#6366f110', padding: '1px 5px', borderRadius: 4 }}>自定义</span>}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '4px' }}>
+                      <input style={inputStyle} value={edit?.input_price ?? item.input_price}
+                        onChange={e => setField(item.model_key, 'input_price', e.target.value)} />
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '4px' }}>
+                      <input style={inputStyle} value={edit?.output_price ?? item.output_price}
+                        onChange={e => setField(item.model_key, 'output_price', e.target.value)} />
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '4px' }}>
+                      <input style={inputStyle} value={edit?.cache_read_ratio ?? item.cache_read_ratio}
+                        onChange={e => setField(item.model_key, 'cache_read_ratio', e.target.value)} />
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '4px' }}>
+                      <input style={inputStyle} value={edit?.cache_write_ratio ?? item.cache_write_ratio}
+                        onChange={e => setField(item.model_key, 'cache_write_ratio', e.target.value)} />
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '4px' }}>
+                      {item.isCustom && (
+                        <button onClick={() => handleReset(item.model_key)} style={{
+                          fontSize: 10, color: '#ef4444', background: 'none', border: 'none',
+                          cursor: 'pointer', padding: '2px 6px',
+                        }}>恢复</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '14px 24px', borderTop: '1px solid #f0f0f0',
+          display: 'flex', justifyContent: 'flex-end', gap: 8,
+        }}>
+          <button onClick={onClose} style={{
+            height: 34, padding: '0 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+            border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer',
+          }}>取消</button>
+          <button onClick={handleSave} disabled={saving} style={{
+            height: 34, padding: '0 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+            border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer',
+            opacity: saving ? .7 : 1,
+          }}>{saving ? '保存中...' : '保存'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TokenStats() {
   const [data, setData] = useState<any>(null);
   const [range, setRange] = useState('24h');
   const [activeTab, setActiveTab] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [hoverBar, setHoverBar] = useState<{ idx: number; el: HTMLDivElement } | null>(null);
+  const [showPricing, setShowPricing] = useState(false);
 
-  const load = (r: string) => {
+  const load = useCallback((r: string) => {
     setLoading(true); setError('');
     getTokenStats(r)
       .then(setData)
       .catch((e: any) => { setError(e.response?.data?.error || '加载失败'); setData(null); })
       .finally(() => setLoading(false));
-  };
-  useEffect(() => { load(range); }, [range]);
+  }, []);
+  useEffect(() => { load(range); }, [range, load]);
 
   const allGroups: any[] = data?.groups || [];
 
-  // Build available tabs from actual data
   const tabs = useMemo(() => {
     const items: { key: string; label: string; color: string; icon: string }[] = [
-      { key: 'all', label: '全部', color: '#6366f1', icon: '∑' },
+      { key: 'all', label: '全部', color: '#6366f1', icon: '\u2211' },
     ];
     for (const g of allGroups) {
       const cfg = groupConfig[g.app_type];
@@ -67,13 +274,11 @@ export default function TokenStats() {
     return items;
   }, [allGroups]);
 
-  // Filter groups by active tab
   const groups = useMemo(() =>
     activeTab === 'all' ? allGroups : allGroups.filter(g => g.app_type === activeTab),
     [allGroups, activeTab],
   );
 
-  // Recompute summary & timeline for filtered groups
   const summary = useMemo(() => {
     if (!data?.summary) return null;
     if (activeTab === 'all') return data.summary;
@@ -101,11 +306,23 @@ export default function TokenStats() {
     { key: '30d', label: '30 天' },
   ];
 
+  const gridCols = '2fr 70px 1fr 1fr 1fr 1fr 80px 3fr';
+
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', fontFamily: "Inter,-apple-system,'Segoe UI',sans-serif" }}>
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div style={{ fontSize: 13, color: '#9ca3af' }}>基于本地会话日志，定价来源官方 API</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, color: '#9ca3af' }}>基于本地会话日志</span>
+          <button onClick={() => setShowPricing(true)} style={{
+            height: 28, padding: '0 12px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+            border: '1px solid #ececf1', background: '#fff', color: '#6b7280', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 4, transition: 'all .15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#ececf1'; e.currentTarget.style.color = '#6b7280'; }}
+          >&#9881; 定价设置</button>
+        </div>
         <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 10, padding: 3 }}>
           {ranges.map(r => (
             <button key={r.key} onClick={() => setRange(r.key)} style={{
@@ -119,7 +336,7 @@ export default function TokenStats() {
         </div>
       </div>
 
-      {/* ── Group Tabs ── */}
+      {/* Group Tabs */}
       {tabs.length > 1 && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
           {tabs.map(t => {
@@ -156,7 +373,7 @@ export default function TokenStats() {
       {loading && !data && <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>加载中...</div>}
 
       {summary && <>
-        {/* ── Summary row ── */}
+        {/* Summary row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
           <StatCard color="#6366f1" label="总 Token" value={fmt(summary.total_tokens)} sub={`${summary.total_requests.toLocaleString()} 次请求`} />
           <StatCard color="#3b82f6" label="输入 Token" value={fmt(summary.total_input_tokens)}
@@ -166,9 +383,10 @@ export default function TokenStats() {
           <StatCard color="#f97316" label="估算费用" value={fmtCost(summary.total_cost_usd)} />
         </div>
 
-        {/* ── Timeline chart ── */}
+        {/* Timeline chart */}
         {timeline.length > 0 && (
-          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #ececf1', padding: '20px 24px', marginBottom: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #ececf1', padding: '20px 24px', marginBottom: 20, position: 'relative' }}
+            data-chart-container>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#16192c' }}>用量趋势</span>
               <span style={{ display: 'flex', gap: 14, fontSize: 11, color: '#9ca3af' }}>
@@ -180,14 +398,19 @@ export default function TokenStats() {
                 </span>
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 100 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 100, position: 'relative' }}>
               {timeline.map((t: any, i: number) => {
                 const total = (t.input || 0) + (t.output || 0);
                 const h = total > 0 ? Math.max(3, (total / tlMax) * 100) : 0;
                 const inH = total > 0 ? (t.input / total) * h : 0;
+                const isHovered = hoverBar?.idx === i;
                 return (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}
-                    title={`${t.time}\n输入: ${fmt(t.input)}\n输出: ${fmt(t.output)}\n费用: ${fmtCost(t.cost)}\n请求: ${t.requests}`}>
+                  <div key={i} style={{
+                    flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%',
+                    cursor: 'pointer', opacity: hoverBar && !isHovered ? 0.4 : 1, transition: 'opacity .15s',
+                  }}
+                    onMouseEnter={e => setHoverBar({ idx: i, el: e.currentTarget as HTMLDivElement })}
+                    onMouseLeave={() => setHoverBar(null)}>
                     {h > 0 ? <>
                       <div style={{ height: (h - inH) + '%', background: '#22c55e', borderRadius: '2px 2px 0 0', minHeight: (h - inH) > 0 ? 1 : 0 }} />
                       <div style={{ height: inH + '%', background: '#3b82f6' }} />
@@ -200,10 +423,11 @@ export default function TokenStats() {
               <span>{timeline[0]?.time}</span>
               <span>{timeline[timeline.length - 1]?.time}</span>
             </div>
+            {hoverBar && <ChartTooltip data={timeline[hoverBar.idx]} barRef={hoverBar.el} />}
           </div>
         )}
 
-        {/* ── Groups ── */}
+        {/* Groups */}
         {groups.length === 0 && !loading && (
           <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', background: '#fff', borderRadius: 14, border: '1px solid #ececf1' }}>
             该时间范围内无请求数据
@@ -235,20 +459,23 @@ export default function TokenStats() {
 
               {/* Table header */}
               <div style={{
-                display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px 3fr',
+                display: 'grid', gridTemplateColumns: gridCols,
                 padding: '8px 20px', fontSize: 10, fontWeight: 700, color: '#9ca3af',
                 textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #f3f4f6',
               }}>
-                <span>模型</span><span style={{ textAlign: 'right' }}>输入</span>
-                <span style={{ textAlign: 'right' }}>输出</span><span style={{ textAlign: 'right' }}>缓存</span>
-                <span style={{ textAlign: 'right' }}>费用</span><span style={{ textAlign: 'right' }}>单价</span>
+                <span>模型</span>
+                <span style={{ textAlign: 'right' }}>次数</span>
+                <span style={{ textAlign: 'right' }}>输入</span>
+                <span style={{ textAlign: 'right' }}>输出</span>
+                <span style={{ textAlign: 'right' }}>缓存</span>
+                <span style={{ textAlign: 'right' }}>费用</span>
+                <span style={{ textAlign: 'right' }}>单价</span>
                 <span style={{ paddingLeft: 16 }}>占比</span>
               </div>
 
               {/* Model rows with provider sub-groups */}
               {(() => {
                 const models = g.models || [];
-                // Group models by provider
                 const providerGroups: { provider: string; models: any[] }[] = [];
                 let lastProvider = '';
                 for (const m of models) {
@@ -290,7 +517,7 @@ export default function TokenStats() {
                         const pct = allTokens > 0 ? (mTotal / allTokens) * 100 : 0;
                         return (
                           <div key={m.model + m.display_name} style={{
-                            display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px 3fr',
+                            display: 'grid', gridTemplateColumns: gridCols,
                             padding: '10px 20px', alignItems: 'center', fontSize: 13,
                             borderBottom: idx < pg.models.length - 1 ? '1px solid #f9fafb' : '1px solid #f3f4f6',
                             transition: 'background .1s',
@@ -303,8 +530,11 @@ export default function TokenStats() {
                               <span style={{ fontWeight: 600, color: '#16192c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {m.display_name || m.model}
                               </span>
-                              <span style={{ fontSize: 10, color: '#bbb', flexShrink: 0 }}>{m.requests.toLocaleString()}次</span>
                             </div>
+                            {/* Requests */}
+                            <span style={{ textAlign: 'right', color: '#6b7280', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
+                              {m.requests.toLocaleString()}
+                            </span>
                             {/* Input */}
                             <span style={{ textAlign: 'right', color: '#3b82f6', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>{fmt(m.input_tokens)}</span>
                             {/* Output */}
@@ -337,6 +567,8 @@ export default function TokenStats() {
           );
         })}
       </>}
+
+      {showPricing && <PricingModal onClose={() => { setShowPricing(false); load(range); }} />}
     </div>
   );
 }
