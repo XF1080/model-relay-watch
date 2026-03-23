@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"model-monitor/internal/model"
 	"os"
 	"path/filepath"
 	"sort"
@@ -117,18 +118,33 @@ var officialPricing = map[string]modelPrice{
 	"gemini-3-flash":             {0.30, 2.5, 0.1, 0},
 }
 
-func lookupPrice(model string) modelPrice {
-	if p, ok := officialPricing[model]; ok {
+func lookupPrice(modelName string) modelPrice {
+	// Check custom pricing from DB first
+	var custom model.ModelPricing
+	if err := model.DB.Where("model_key = ?", modelName).First(&custom).Error; err == nil {
+		return modelPrice{custom.InputPrice, custom.OutputPrice, custom.CacheReadRatio, custom.CacheWriteRatio}
+	}
+	// Try prefix match in custom pricing
+	var allCustom []model.ModelPricing
+	model.DB.Find(&allCustom)
+	for _, cp := range allCustom {
+		if strings.HasPrefix(modelName, cp.ModelKey) {
+			return modelPrice{cp.InputPrice, cp.OutputPrice, cp.CacheReadRatio, cp.CacheWriteRatio}
+		}
+	}
+
+	// Fall back to official pricing
+	if p, ok := officialPricing[modelName]; ok {
 		return p
 	}
-	// Try prefix match: "claude-opus-4-6-20260206" → "claude-opus-4-6"
+	// Try prefix match: "claude-opus-4-6-20260206" -> "claude-opus-4-6"
 	for prefix, p := range officialPricing {
-		if strings.HasPrefix(model, prefix) {
+		if strings.HasPrefix(modelName, prefix) {
 			return p
 		}
 	}
 	// Heuristic by model name keywords
-	ml := strings.ToLower(model)
+	ml := strings.ToLower(modelName)
 	switch {
 	case strings.Contains(ml, "opus"):
 		return modelPrice{5, 25, 0.1, 1.25}
@@ -145,8 +161,36 @@ func lookupPrice(model string) modelPrice {
 	}
 }
 
-func estimateCost(model string, inTok, outTok, cacheRead, cacheWrite int64) float64 {
-	p := lookupPrice(model)
+// GetOfficialPricing returns the built-in official pricing table
+func GetOfficialPricing() map[string]modelPrice {
+	return officialPricing
+}
+
+type OfficialPricingItem struct {
+	ModelKey        string  `json:"model_key"`
+	InputPrice      float64 `json:"input_price"`
+	OutputPrice     float64 `json:"output_price"`
+	CacheReadRatio  float64 `json:"cache_read_ratio"`
+	CacheWriteRatio float64 `json:"cache_write_ratio"`
+}
+
+func ListOfficialPricing() []OfficialPricingItem {
+	var items []OfficialPricingItem
+	for k, p := range officialPricing {
+		items = append(items, OfficialPricingItem{
+			ModelKey:        k,
+			InputPrice:      p.In,
+			OutputPrice:     p.Out,
+			CacheReadRatio:  p.CacheReadRatio,
+			CacheWriteRatio: p.CacheWriteRatio,
+		})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ModelKey < items[j].ModelKey })
+	return items
+}
+
+func estimateCost(modelName string, inTok, outTok, cacheRead, cacheWrite int64) float64 {
+	p := lookupPrice(modelName)
 	inCost := float64(inTok) * p.In / 1_000_000
 	outCost := float64(outTok) * p.Out / 1_000_000
 	cacheRCost := float64(cacheRead) * p.In * p.CacheReadRatio / 1_000_000

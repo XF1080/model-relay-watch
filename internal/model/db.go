@@ -21,7 +21,7 @@ func InitDB(dbPath string) {
 		log.Fatalf("failed to open database: %v", err)
 	}
 
-	err = DB.AutoMigrate(&Channel{}, &ModelEntry{}, &TestResult{}, &Setting{})
+	err = DB.AutoMigrate(&Channel{}, &ModelEntry{}, &TestResult{}, &Setting{}, &ModelPricing{})
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}

@@ -83,6 +83,14 @@ func Setup(r *gin.Engine, frontendFS *embed.FS) {
 
 		// Stats (token usage from CCS)
 		api.GET("/stats/tokens", controller.GetTokenStats)
+
+		// Pricing
+		pricing := api.Group("/pricing")
+		{
+			pricing.GET("", controller.ListPricing)
+			pricing.PUT("", controller.SavePricing)
+			pricing.DELETE("/:key", controller.DeletePricing)
+		}
 	}
 
 	// Serve frontend
