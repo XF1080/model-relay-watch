@@ -103,26 +103,29 @@ func GetModelStats(c *gin.Context) {
 		ScoreNetwork     float64 `json:"score_network"`
 	}
 
-	grouped := make(map[string][]model.TestResult)
-	entryIDs := make(map[string]uint)
+	// Group by ModelEntryID so same model name on different channels stays separate
+	grouped := make(map[uint][]model.TestResult)
 	for _, r := range results {
-		grouped[r.ModelName] = append(grouped[r.ModelName], r)
-		entryIDs[r.ModelName] = r.ModelEntryID
+		grouped[r.ModelEntryID] = append(grouped[r.ModelEntryID], r)
 	}
 
 	var stats []ModelStats
 	// Track which model entries have test data
 	seenEntries := make(map[uint]bool)
 
-	for modelName, rs := range grouped {
+	for entryID, rs := range grouped {
+		entry, ok := entryMap[entryID]
+		if !ok {
+			continue
+		}
 		s := ModelStats{
-			ModelName:  modelName,
-			ModelID:    entryIDs[modelName],
+			ModelName:  entry.ModelName,
+			ModelID:    entryID,
 			TotalTests: len(rs),
 		}
-		seenEntries[s.ModelID] = true
+		seenEntries[entryID] = true
 
-		if entry, ok := entryMap[s.ModelID]; ok && entry.Channel != nil {
+		if entry.Channel != nil {
 			s.ChannelName = entry.Channel.Name
 			s.ChannelType = entry.Channel.Type
 		}
