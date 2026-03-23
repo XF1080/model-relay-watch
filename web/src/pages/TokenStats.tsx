@@ -521,8 +521,21 @@ export default function TokenStats() {
               })}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: '#bbb' }}>
-              <span>{timeline[0]?.time}</span>
-              <span>{timeline[timeline.length - 1]?.time}</span>
+              {(() => {
+                const len = timeline.length;
+                if (len <= 1) return <span>{timeline[0]?.time}</span>;
+                // Show ~5-8 evenly spaced labels
+                const maxLabels = Math.min(8, len);
+                const step = Math.max(1, Math.floor((len - 1) / (maxLabels - 1)));
+                const indices: number[] = [];
+                for (let i = 0; i < len; i += step) indices.push(i);
+                if (indices[indices.length - 1] !== len - 1) indices.push(len - 1);
+                return indices.map((idx, i) => (
+                  <span key={i} style={{ textAlign: i === 0 ? 'left' : i === indices.length - 1 ? 'right' : 'center', flex: i === 0 || i === indices.length - 1 ? undefined : 1 }}>
+                    {timeline[idx]?.time}
+                  </span>
+                ));
+              })()}
             </div>
             {hoverBar && <ChartTooltip data={timeline[hoverBar.idx]} barRef={hoverBar.el} />}
           </div>
