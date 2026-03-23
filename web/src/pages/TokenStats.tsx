@@ -83,65 +83,121 @@ function ChartTooltip({ data, barRef }: { data: any; barRef: HTMLDivElement }) {
 /* --- Pricing Modal --- */
 function PricingModal({ onClose }: { onClose: () => void }) {
   const [official, setOfficial] = useState<any[]>([]);
-  const [custom, setCustom] = useState<any[]>([]);
+  const [custom, setCustom] = useState<Record<string, any>>({});
   const [edits, setEdits] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [newKey, setNewKey] = useState('');
 
-  useEffect(() => {
+  const reload = () => {
     getPricing().then(d => {
       setOfficial(d.official || []);
-      setCustom(d.custom || []);
       const m: Record<string, any> = {};
       for (const c of (d.custom || [])) m[c.model_key] = c;
-      setEdits(m);
-    });
-  }, []);
+      setCustom(m);
+      setEdits({});
+    }).catch(() => setMsg('加载定价失败'));
+  };
 
+  useEffect(() => { reload(); }, []);
+
+  // Merged list: official + custom-only entries
   const merged = useMemo(() => {
     const map = new Map<string, any>();
     for (const o of official) {
-      map.set(o.model_key, { ...o, isCustom: false });
+      const c = custom[o.model_key];
+      map.set(o.model_key, c
+        ? { ...c, isCustom: true, officialIn: o.input_price, officialOut: o.output_price }
+        : { ...o, isCustom: false });
     }
-    for (const c of custom) {
-      if (map.has(c.model_key)) {
-        map.set(c.model_key, { ...c, isCustom: true });
-      } else {
-        map.set(c.model_key, { ...c, isCustom: true });
-      }
+    // Custom entries not in official list
+    for (const [key, c] of Object.entries(custom)) {
+      if (!map.has(key)) map.set(key, { ...c, isCustom: true });
     }
     return Array.from(map.values()).sort((a, b) => a.model_key.localeCompare(b.model_key));
   }, [official, custom]);
 
-  const getEdit = (key: string) => edits[key];
+  const getVal = (key: string, field: string, fallback: number) => {
+    if (edits[key] && edits[key][field] !== undefined) return edits[key][field];
+    return fallback;
+  };
+
   const setField = (key: string, field: string, val: string) => {
     const num = parseFloat(val);
     if (isNaN(num) && val !== '') return;
-    const base = edits[key] || official.find(o => o.model_key === key) || {};
-    setEdits(prev => ({ ...prev, [key]: { ...base, model_key: key, [field]: val === '' ? 0 : num } }));
+    // Build base from: existing edit > custom > official
+    const base = edits[key]
+      || custom[key]
+      || official.find(o => o.model_key === key)
+      || { input_price: 0, output_price: 0, cache_read_ratio: 0.1, cache_write_ratio: 0 };
+    setEdits(prev => ({
+      ...prev,
+      [key]: { ...base, model_key: key, [field]: val === '' ? '' : num },
+    }));
   };
 
   const handleSave = async () => {
-    setSaving(true);
     const items = Object.values(edits).filter(e => e.model_key);
+    if (items.length === 0) { setMsg('没有修改'); return; }
+    // Replace empty string values with 0
+    const cleaned = items.map(item => {
+      const out: any = { ...item };
+      for (const f of ['input_price', 'output_price', 'cache_read_ratio', 'cache_write_ratio']) {
+        if (out[f] === '' || out[f] === undefined) out[f] = 0;
+      }
+      delete out.isCustom;
+      delete out.officialIn;
+      delete out.officialOut;
+      return out;
+    });
+    setSaving(true);
+    setMsg('');
     try {
-      await savePricing(items);
-      onClose();
-    } catch { /* ignore */ }
+      await savePricing(cleaned);
+      setMsg('已保存');
+      reload();
+    } catch (e: any) {
+      setMsg('保存失败: ' + (e.response?.data?.error || e.message));
+    }
     setSaving(false);
   };
 
-  const handleReset = async (key: string) => {
+  const handleDelete = async (key: string) => {
     try {
       await deletePricing(key);
-      setEdits(prev => { const n = { ...prev }; delete n[key]; return n; });
-      setCustom(prev => prev.filter(c => c.model_key !== key));
-    } catch { /* ignore */ }
+      setMsg(`已恢复 ${key} 默认定价`);
+      reload();
+    } catch (e: any) {
+      setMsg('删除失败: ' + (e.response?.data?.error || e.message));
+    }
+  };
+
+  const handleAdd = () => {
+    const key = newKey.trim().toLowerCase();
+    if (!key) return;
+    if (merged.some(m => m.model_key === key) || edits[key]) {
+      setMsg(`${key} 已存在`);
+      return;
+    }
+    setEdits(prev => ({
+      ...prev,
+      [key]: { model_key: key, input_price: 0, output_price: 0, cache_read_ratio: 0.1, cache_write_ratio: 0 },
+    }));
+    setNewKey('');
   };
 
   const inputStyle: React.CSSProperties = {
-    width: 70, height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid #e5e7eb',
+    width: 80, height: 28, padding: '0 6px', borderRadius: 6, border: '1px solid #e5e7eb',
     fontSize: 12, textAlign: 'right', outline: 'none', fontFamily: 'monospace',
+    boxSizing: 'border-box',
   };
+
+  const allRows = useMemo(() => {
+    // Merge official+custom list with new edits not yet in list
+    const keys = new Set(merged.map(m => m.model_key));
+    const extra = Object.values(edits).filter(e => !keys.has(e.model_key));
+    return [...merged, ...extra.map(e => ({ ...e, isCustom: false, isNew: true }))];
+  }, [merged, edits]);
 
   return (
     <div style={{
@@ -149,7 +205,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
       background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(2px)',
     }} onClick={onClose}>
       <div style={{
-        background: '#fff', borderRadius: 16, width: 720, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        background: '#fff', borderRadius: 16, width: 780, maxHeight: '85vh', display: 'flex', flexDirection: 'column',
         boxShadow: '0 20px 60px rgba(0,0,0,.15)',
       }} onClick={e => e.stopPropagation()}>
         {/* Header */}
@@ -159,7 +215,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
         }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#16192c' }}>定价设置</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>单位: $/百万 tokens, 自定义定价优先于官方默认</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>单位: $/百万 tokens，自定义定价优先于官方默认</div>
           </div>
           <button onClick={onClose} style={{
             width: 30, height: 30, borderRadius: 8, border: 'none', background: '#f3f4f6',
@@ -167,52 +223,89 @@ function PricingModal({ onClose }: { onClose: () => void }) {
           }}>x</button>
         </div>
 
+        {/* Add new row */}
+        <div style={{ padding: '10px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            placeholder="输入模型名称，如 deepseek-v3"
+            value={newKey}
+            onChange={e => setNewKey(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+            style={{
+              flex: 1, height: 32, padding: '0 10px', borderRadius: 6, border: '1px solid #e5e7eb',
+              fontSize: 12, outline: 'none', color: '#16192c',
+            }}
+          />
+          <button onClick={handleAdd} style={{
+            height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+            border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer',
+          }}>+ 新增</button>
+        </div>
+
         {/* Table */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '0 24px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '0' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
-                {['模型', '输入价格', '输出价格', '缓存读取比', '缓存写入比', ''].map((h, i) => (
+                {['模型', '输入 ($/M)', '输出 ($/M)', '缓存读取比', '缓存写入比', '操作'].map((h, i) => (
                   <th key={i} style={{
-                    padding: '10px 4px', textAlign: i === 0 ? 'left' : 'right',
+                    padding: '10px 8px', textAlign: i === 0 ? 'left' : i === 5 ? 'center' : 'right',
                     fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase',
-                    borderBottom: '1px solid #f0f0f0', letterSpacing: .3,
+                    borderBottom: '2px solid #f0f0f0', letterSpacing: .3,
+                    paddingLeft: i === 0 ? 24 : undefined,
                   }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {merged.map(item => {
-                const edit = getEdit(item.model_key);
-                const isEdited = !!edit;
+              {allRows.map(item => {
+                const key = item.model_key;
+                const hasEdit = !!edits[key];
                 return (
-                  <tr key={item.model_key} style={{ borderBottom: '1px solid #f9fafb' }}>
-                    <td style={{ padding: '8px 4px', fontWeight: 600, color: isEdited ? '#6366f1' : '#16192c' }}>
-                      {item.model_key}
-                      {item.isCustom && <span style={{ marginLeft: 4, fontSize: 9, color: '#6366f1', background: '#6366f110', padding: '1px 5px', borderRadius: 4 }}>自定义</span>}
+                  <tr key={key} style={{
+                    borderBottom: '1px solid #f5f5f5',
+                    background: hasEdit ? '#fefce8' : 'transparent',
+                  }}>
+                    <td style={{ padding: '8px 8px 8px 24px', fontWeight: 600, color: hasEdit ? '#6366f1' : '#16192c', whiteSpace: 'nowrap' }}>
+                      {key}
+                      {item.isCustom && !hasEdit && (
+                        <span style={{ marginLeft: 6, fontSize: 9, color: '#6366f1', background: 'rgba(99,102,241,.08)', padding: '1px 6px', borderRadius: 4 }}>自定义</span>
+                      )}
+                      {hasEdit && (
+                        <span style={{ marginLeft: 6, fontSize: 9, color: '#f59e0b', background: 'rgba(245,158,11,.08)', padding: '1px 6px', borderRadius: 4 }}>未保存</span>
+                      )}
                     </td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      <input style={inputStyle} value={edit?.input_price ?? item.input_price}
-                        onChange={e => setField(item.model_key, 'input_price', e.target.value)} />
+                    <td style={{ textAlign: 'right', padding: '4px 8px' }}>
+                      <input style={{ ...inputStyle, borderColor: hasEdit ? '#fbbf24' : '#e5e7eb' }}
+                        value={getVal(key, 'input_price', item.input_price)}
+                        onChange={e => setField(key, 'input_price', e.target.value)} />
                     </td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      <input style={inputStyle} value={edit?.output_price ?? item.output_price}
-                        onChange={e => setField(item.model_key, 'output_price', e.target.value)} />
+                    <td style={{ textAlign: 'right', padding: '4px 8px' }}>
+                      <input style={{ ...inputStyle, borderColor: hasEdit ? '#fbbf24' : '#e5e7eb' }}
+                        value={getVal(key, 'output_price', item.output_price)}
+                        onChange={e => setField(key, 'output_price', e.target.value)} />
                     </td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      <input style={inputStyle} value={edit?.cache_read_ratio ?? item.cache_read_ratio}
-                        onChange={e => setField(item.model_key, 'cache_read_ratio', e.target.value)} />
+                    <td style={{ textAlign: 'right', padding: '4px 8px' }}>
+                      <input style={{ ...inputStyle, borderColor: hasEdit ? '#fbbf24' : '#e5e7eb' }}
+                        value={getVal(key, 'cache_read_ratio', item.cache_read_ratio)}
+                        onChange={e => setField(key, 'cache_read_ratio', e.target.value)} />
                     </td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      <input style={inputStyle} value={edit?.cache_write_ratio ?? item.cache_write_ratio}
-                        onChange={e => setField(item.model_key, 'cache_write_ratio', e.target.value)} />
+                    <td style={{ textAlign: 'right', padding: '4px 8px' }}>
+                      <input style={{ ...inputStyle, borderColor: hasEdit ? '#fbbf24' : '#e5e7eb' }}
+                        value={getVal(key, 'cache_write_ratio', item.cache_write_ratio)}
+                        onChange={e => setField(key, 'cache_write_ratio', e.target.value)} />
                     </td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
+                    <td style={{ textAlign: 'center', padding: '4px 8px' }}>
                       {item.isCustom && (
-                        <button onClick={() => handleReset(item.model_key)} style={{
-                          fontSize: 10, color: '#ef4444', background: 'none', border: 'none',
-                          cursor: 'pointer', padding: '2px 6px',
-                        }}>恢复</button>
+                        <button onClick={() => handleDelete(key)} style={{
+                          fontSize: 11, color: '#ef4444', background: 'rgba(239,68,68,.06)', border: 'none',
+                          cursor: 'pointer', padding: '3px 8px', borderRadius: 4, fontWeight: 600,
+                        }}>恢复默认</button>
+                      )}
+                      {hasEdit && (
+                        <button onClick={() => setEdits(prev => { const n = { ...prev }; delete n[key]; return n; })} style={{
+                          fontSize: 11, color: '#6b7280', background: 'rgba(107,114,128,.06)', border: 'none',
+                          cursor: 'pointer', padding: '3px 8px', borderRadius: 4, fontWeight: 600, marginLeft: 4,
+                        }}>撤销</button>
                       )}
                     </td>
                   </tr>
@@ -224,18 +317,23 @@ function PricingModal({ onClose }: { onClose: () => void }) {
 
         {/* Footer */}
         <div style={{
-          padding: '14px 24px', borderTop: '1px solid #f0f0f0',
-          display: 'flex', justifyContent: 'flex-end', gap: 8,
+          padding: '12px 24px', borderTop: '1px solid #f0f0f0',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <button onClick={onClose} style={{
-            height: 34, padding: '0 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-            border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer',
-          }}>取消</button>
-          <button onClick={handleSave} disabled={saving} style={{
-            height: 34, padding: '0 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-            border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer',
-            opacity: saving ? .7 : 1,
-          }}>{saving ? '保存中...' : '保存'}</button>
+          <div style={{ fontSize: 12, color: msg.includes('失败') || msg.includes('存在') ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
+            {msg}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{
+              height: 34, padding: '0 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer',
+            }}>关闭</button>
+            <button onClick={handleSave} disabled={saving || Object.keys(edits).length === 0} style={{
+              height: 34, padding: '0 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer',
+              opacity: saving || Object.keys(edits).length === 0 ? .5 : 1,
+            }}>{saving ? '保存中...' : `保存 (${Object.keys(edits).length})`}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -309,7 +407,7 @@ export default function TokenStats() {
   const gridCols = '2fr 70px 1fr 1fr 1fr 1fr 80px 3fr';
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', fontFamily: "Inter,-apple-system,'Segoe UI',sans-serif" }}>
+    <div style={{ fontFamily: "Inter,-apple-system,'Segoe UI',sans-serif" }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
