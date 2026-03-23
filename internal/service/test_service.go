@@ -21,39 +21,84 @@ var (
 	batchMutex   sync.Mutex
 	batchRunning bool
 	// Progress tracking
-	batchTotal     int
-	batchCompleted int
-	batchCurrent   string // model currently being tested
-	progressMu     sync.RWMutex
+	batchTasks []TaskStatus
+	progressMu sync.RWMutex
 )
+
+// TaskStatus tracks the state of a single test task
+type TaskStatus struct {
+	Index       int    `json:"index"`
+	ModelName   string `json:"model_name"`
+	ChannelName string `json:"channel_name"`
+	Status      string `json:"status"` // "pending", "running", "success", "failed"
+	LatencyMs   int64  `json:"latency_ms,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
 
 func IsBatchRunning() bool {
 	return batchRunning
 }
 
 type BatchProgress struct {
-	Running   bool   `json:"running"`
-	Total     int    `json:"total"`
-	Completed int    `json:"completed"`
-	Current   string `json:"current"`
+	Running   bool         `json:"running"`
+	Total     int          `json:"total"`
+	Completed int          `json:"completed"`
+	Current   string       `json:"current"`
+	Tasks     []TaskStatus `json:"tasks"`
 }
 
 func GetBatchProgress() BatchProgress {
 	progressMu.RLock()
 	defer progressMu.RUnlock()
+	completed := 0
+	current := ""
+	for _, t := range batchTasks {
+		if t.Status == "success" || t.Status == "failed" {
+			completed++
+		}
+		if t.Status == "running" {
+			current = t.ModelName + " @ " + t.ChannelName
+		}
+	}
+	// Return a copy of tasks
+	tasks := make([]TaskStatus, len(batchTasks))
+	copy(tasks, batchTasks)
 	return BatchProgress{
 		Running:   batchRunning,
-		Total:     batchTotal,
-		Completed: batchCompleted,
-		Current:   batchCurrent,
+		Total:     len(batchTasks),
+		Completed: completed,
+		Current:   current,
+		Tasks:     tasks,
 	}
 }
 
-func setProgress(total, completed int, current string) {
+func initTaskList(tasks []testTask) {
 	progressMu.Lock()
-	batchTotal = total
-	batchCompleted = completed
-	batchCurrent = current
+	batchTasks = make([]TaskStatus, len(tasks))
+	for i, t := range tasks {
+		batchTasks[i] = TaskStatus{
+			Index:       i,
+			ModelName:   t.entry.ModelName,
+			ChannelName: t.ch.Name,
+			Status:      "pending",
+		}
+	}
+	progressMu.Unlock()
+}
+
+func updateTaskStatus(index int, status string, latencyMs int64, errMsg string) {
+	progressMu.Lock()
+	if index >= 0 && index < len(batchTasks) {
+		batchTasks[index].Status = status
+		batchTasks[index].LatencyMs = latencyMs
+		batchTasks[index].Error = errMsg
+	}
+	progressMu.Unlock()
+}
+
+func clearTaskList() {
+	progressMu.Lock()
+	batchTasks = nil
 	progressMu.Unlock()
 }
 
@@ -283,7 +328,7 @@ func TestAllModels(channelID uint) error {
 	}
 	batchRunning = true
 	defer func() {
-		setProgress(0, 0, "")
+		clearTaskList()
 		batchRunning = false
 		batchMutex.Unlock()
 	}()
@@ -313,7 +358,7 @@ func TestAllModels(channelID uint) error {
 		}
 	}
 
-	setProgress(len(tasks), 0, "")
+	initTaskList(tasks)
 	runTestsConcurrently(tasks, autoDisable, autoEnable, thresholdMs, keywords)
 	return nil
 }
@@ -324,7 +369,7 @@ func TestSelectedModels(ids []uint) error {
 	}
 	batchRunning = true
 	defer func() {
-		setProgress(0, 0, "")
+		clearTaskList()
 		batchRunning = false
 		batchMutex.Unlock()
 	}()
@@ -349,7 +394,7 @@ func TestSelectedModels(ids []uint) error {
 		tasks = append(tasks, testTask{entry: entry, ch: &chCopy})
 	}
 
-	setProgress(len(tasks), 0, "")
+	initTaskList(tasks)
 	runTestsConcurrently(tasks, autoDisable, autoEnable, thresholdMs, keywords)
 	return nil
 }
@@ -371,12 +416,13 @@ func runTestsConcurrently(tasks []testTask, autoDisable, autoEnable bool, thresh
 		concurrency = len(tasks)
 	}
 
-	var completed int32
-	var mu sync.Mutex
-	taskCh := make(chan testTask, len(tasks))
-
-	for _, t := range tasks {
-		taskCh <- t
+	type indexedTask struct {
+		index int
+		task  testTask
+	}
+	taskCh := make(chan indexedTask, len(tasks))
+	for i, t := range tasks {
+		taskCh <- indexedTask{index: i, task: t}
 	}
 	close(taskCh)
 
@@ -385,10 +431,21 @@ func runTestsConcurrently(tasks []testTask, autoDisable, autoEnable bool, thresh
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for t := range taskCh {
-				setProgress(len(tasks), int(completed), t.entry.ModelName+" @ "+t.ch.Name)
+			for it := range taskCh {
+				t := it.task
+				updateTaskStatus(it.index, "running", 0, "")
 
 				result := TestSingleModel(t.entry, t.ch)
+
+				if result.Success {
+					updateTaskStatus(it.index, "success", result.ResponseMs, "")
+				} else {
+					errMsg := result.ErrorMessage
+					if len(errMsg) > 80 {
+						errMsg = errMsg[:80]
+					}
+					updateTaskStatus(it.index, "failed", result.ResponseMs, errMsg)
+				}
 
 				if autoDisable && t.ch.AutoBan && t.entry.Status == model.ChannelStatusEnabled {
 					if shouldDisable, reason := shouldDisableModel(result, thresholdMs, keywords); shouldDisable {
@@ -400,10 +457,6 @@ func runTestsConcurrently(tasks []testTask, autoDisable, autoEnable bool, thresh
 					UpdateModelStatus(t.entry.ID, model.ChannelStatusEnabled)
 					log.Printf("[AUTO-ENABLE] model=%s channel=%s", t.entry.ModelName, t.ch.Name)
 				}
-
-				mu.Lock()
-				completed++
-				mu.Unlock()
 			}
 		}()
 	}

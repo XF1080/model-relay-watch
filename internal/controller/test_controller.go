@@ -78,10 +78,5 @@ func TestBatch(c *gin.Context) {
 
 func TestStatus(c *gin.Context) {
 	p := service.GetBatchProgress()
-	c.JSON(http.StatusOK, gin.H{
-		"running":   p.Running,
-		"total":     p.Total,
-		"completed": p.Completed,
-		"current":   p.Current,
-	})
+	c.JSON(http.StatusOK, p)
 }

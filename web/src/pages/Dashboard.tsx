@@ -610,6 +610,8 @@ function MonitorPanel() {
   const [models, setModels] = useState<ModelStat[]>([]);
   const [testing, setTesting] = useState(false);
   const [progress, setProgress] = useState({ total: 0, completed: 0, current: '' });
+  const [taskList, setTaskList] = useState<Array<{ index: number; model_name: string; channel_name: string; status: string; latency_ms: number; error: string }>>([]);
+  const [showTasks, setShowTasks] = useState(false);
   const [channelFilter, setChannelFilter] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('score');
@@ -639,6 +641,7 @@ function MonitorPanel() {
     getTestStatus().then(s => {
       setTesting(s.running);
       setProgress({ total: s.total, completed: s.completed, current: s.current });
+      if (s.tasks?.length) { setTaskList(s.tasks); setShowTasks(true); }
     });
   };
 
@@ -650,10 +653,11 @@ function MonitorPanel() {
       getTestStatus().then(s => {
         setTesting(s.running);
         setProgress({ total: s.total, completed: s.completed, current: s.current });
+        if (s.tasks?.length) setTaskList(s.tasks);
         if (!s.running) { load(); clearInterval(timer); }
-        else { getModelStats().then(setModels); } // refresh data during test
+        else { getModelStats().then(setModels); }
       });
-    }, 2000);
+    }, 1500);
     return () => clearInterval(timer);
   }, [testing]);
 
@@ -702,6 +706,7 @@ function MonitorPanel() {
   // Scoped test: selected > filtered > all
   const handleTestAll = async () => {
     setTesting(true);
+    setShowTasks(true);
     try {
       if (selected.size > 0) {
         await testBatch(Array.from(selected));
@@ -722,6 +727,7 @@ function MonitorPanel() {
 
   const handleTestGroup = async (ids: number[]) => {
     setTesting(true);
+    setShowTasks(true);
     try {
       await testBatch(ids);
       Toast.success(`已启动 ${ids.length} 个通道的测试`);
@@ -759,23 +765,74 @@ function MonitorPanel() {
       </div>
 
       {/* Progress bar */}
-      {testing && progress.total > 0 && (
-        <div style={{ marginBottom: 16, background: '#fff', borderRadius: 10, border: '1px solid #ececf1', padding: '12px 18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#6366f1' }}>
-              测试进度 {progress.completed}/{progress.total}
-            </span>
-            <span style={{ fontSize: 11, color: '#9ca3af', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {progress.current}
-            </span>
+      {(testing || (showTasks && taskList.length > 0)) && (
+        <div style={{ marginBottom: 16, background: '#fff', borderRadius: 10, border: '1px solid #ececf1', overflow: 'hidden' }}>
+          <div
+            style={{ padding: '12px 18px', cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => setShowTasks(!showTasks)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#6366f1' }}>
+                {testing ? `测试进度 ${progress.completed}/${progress.total}` : `测试完成 ${taskList.filter(t => t.status === 'success').length}/${taskList.length} 成功`}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: '#9ca3af', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {testing ? progress.current : ''}
+                </span>
+                {!testing && <button onClick={e => { e.stopPropagation(); setShowTasks(false); setTaskList([]); }} style={{
+                  fontSize: 10, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
+                }}>x 关闭</button>}
+                <span style={{ fontSize: 10, color: '#9ca3af', transition: 'transform .2s', transform: showTasks ? 'rotate(90deg)' : 'none' }}>▶</span>
+              </div>
+            </div>
+            {progress.total > 0 && (
+              <div style={{ height: 4, background: '#f3f4f6', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: 2, transition: 'width .3s',
+                  width: `${Math.round((progress.completed / Math.max(progress.total, 1)) * 100)}%`,
+                  background: testing ? 'linear-gradient(90deg, #6366f1, #8b5cf6)' : '#22c55e',
+                }} />
+              </div>
+            )}
           </div>
-          <div style={{ height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 3, transition: 'width .3s',
-              width: `${Math.round((progress.completed / progress.total) * 100)}%`,
-              background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
-            }} />
-          </div>
+
+          {/* Task list */}
+          {showTasks && taskList.length > 0 && (
+            <div style={{ maxHeight: 320, overflowY: 'auto', borderTop: '1px solid #f0f0f0' }}>
+              {taskList.map((t, i) => (
+                <div key={i} style={{
+                  display: 'grid', gridTemplateColumns: '18px 1fr 1fr 70px 60px',
+                  padding: '6px 18px', fontSize: 12, alignItems: 'center', gap: 8,
+                  borderBottom: '1px solid #f9fafb',
+                  background: t.status === 'running' ? 'rgba(99,102,241,0.03)' : 'transparent',
+                }}>
+                  {/* Status icon */}
+                  <span style={{ fontSize: 11, textAlign: 'center' }}>
+                    {t.status === 'pending' && <span style={{ color: '#d1d5db' }}>○</span>}
+                    {t.status === 'running' && <span style={{ color: '#6366f1', animation: 'spin 1s linear infinite', display: 'inline-block' }}>◌</span>}
+                    {t.status === 'success' && <span style={{ color: '#22c55e' }}>✓</span>}
+                    {t.status === 'failed' && <span style={{ color: '#ef4444' }}>✕</span>}
+                  </span>
+                  {/* Model */}
+                  <span style={{ fontWeight: 600, color: '#16192c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.model_name}
+                  </span>
+                  {/* Channel */}
+                  <span style={{ color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.channel_name}
+                  </span>
+                  {/* Latency */}
+                  <span style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11, color: t.status === 'success' ? '#22c55e' : t.status === 'failed' ? '#ef4444' : '#bbb' }}>
+                    {t.latency_ms > 0 ? fmtMs(t.latency_ms) : t.status === 'running' ? '...' : '-'}
+                  </span>
+                  {/* Error */}
+                  <span style={{ fontSize: 10, color: '#ef4444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.error}>
+                    {t.error || ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
