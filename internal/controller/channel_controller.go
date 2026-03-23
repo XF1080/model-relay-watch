@@ -62,17 +62,40 @@ func GetChannel(c *gin.Context) {
 }
 
 func CreateChannel(c *gin.Context) {
-	var ch model.Channel
-	if err := c.ShouldBindJSON(&ch); err != nil {
+	var input struct {
+		Name      string `json:"name"`
+		Type      string `json:"type"`
+		Tag       string `json:"tag"`
+		BaseURL   string `json:"base_url"`
+		APIKey    string `json:"api_key"`
+		AutoBan   *bool  `json:"auto_ban"`
+		TestModel string `json:"test_model"`
+		Priority  int    `json:"priority"`
+		Remark    string `json:"remark"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if ch.Name == "" || ch.BaseURL == "" {
+	if input.Name == "" || input.BaseURL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name and base_url are required"})
 		return
 	}
-	ch.BaseURL = normalizeBaseURL(ch.BaseURL)
-	ch.Status = model.ChannelStatusEnabled
+	ch := model.Channel{
+		Name:      input.Name,
+		Type:      input.Type,
+		Tag:       input.Tag,
+		BaseURL:   normalizeBaseURL(input.BaseURL),
+		APIKey:    input.APIKey,
+		TestModel: input.TestModel,
+		Priority:  input.Priority,
+		Remark:    input.Remark,
+		Status:    model.ChannelStatusEnabled,
+		AutoBan:   true,
+	}
+	if input.AutoBan != nil {
+		ch.AutoBan = *input.AutoBan
+	}
 	if ch.Tag == "" {
 		ch.Tag = autoDetectTag(ch.Name, ch.BaseURL)
 	}
