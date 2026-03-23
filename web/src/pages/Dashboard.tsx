@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { getDashboard, getModelStats, testAll, testModel, testBatch, getTestStatus } from '../api/client';
 import type { DashboardData } from '../types';
+import TokenStats from './TokenStats';
 
 /* ─── Types ──────────────────────────────── */
 interface ModelStat {
@@ -547,6 +548,33 @@ function SearchableSelect({ value, onChange, options, placeholder, width }: {
 
 /* ─── Main Dashboard ─────────────────────── */
 export default function Dashboard() {
+  const [tab, setTab] = useState<'monitor' | 'usage'>('monitor');
+
+  const tabs = [
+    { key: 'monitor' as const, label: '模型监控', icon: '📊' },
+    { key: 'usage' as const, label: '用量统计', icon: '💰' },
+  ];
+
+  return (
+    <div>
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f3f4f6', borderRadius: 10, padding: 3, width: 'fit-content' }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            padding: '7px 20px', fontSize: 13, fontWeight: 600, borderRadius: 8,
+            border: 'none', cursor: 'pointer', transition: 'all .15s',
+            background: tab === t.key ? '#fff' : 'transparent',
+            color: tab === t.key ? '#6366f1' : '#9ca3af',
+            boxShadow: tab === t.key ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
+          }}>{t.label}</button>
+        ))}
+      </div>
+      {tab === 'monitor' ? <MonitorPanel /> : <TokenStats />}
+    </div>
+  );
+}
+
+function MonitorPanel() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [models, setModels] = useState<ModelStat[]>([]);
   const [testing, setTesting] = useState(false);

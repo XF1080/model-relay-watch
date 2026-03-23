@@ -56,7 +56,6 @@ const navSections = [
     label: '分析',
     items: [
       { key: '/history', text: '测试历史', icon: icons.barChart },
-      { key: '/token-stats', text: '用量统计', icon: icons.coins },
     ],
   },
   {

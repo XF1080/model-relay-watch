@@ -105,10 +105,7 @@ export default function TokenStats() {
     <div style={{ maxWidth: 1100, margin: '0 auto', fontFamily: "Inter,-apple-system,'Segoe UI',sans-serif" }}>
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#16192c' }}>用量统计</h1>
-          <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 2 }}>基于本地会话日志，定价来源官方 API</div>
-        </div>
+        <div style={{ fontSize: 13, color: '#9ca3af' }}>基于本地会话日志，定价来源官方 API</div>
         <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 10, padding: 3 }}>
           {ranges.map(r => (
             <button key={r.key} onClick={() => setRange(r.key)} style={{
