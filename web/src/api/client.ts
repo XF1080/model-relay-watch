@@ -25,7 +25,7 @@ export const testModel = (id: number) => api.post<{ success: boolean; response_m
 export const testChannel = (id: number) => api.post(`/test/channel/${id}`);
 export const testAll = () => api.post('/test/all');
 export const testBatch = (ids: number[]) => api.post('/test/batch', { ids });
-export const getTestStatus = () => api.get<{ running: boolean }>('/test/status').then(r => r.data.running);
+export const getTestStatus = () => api.get<{ running: boolean; total: number; completed: number; current: string }>('/test/status').then(r => r.data);
 
 // History
 export const listHistory = (params?: Record<string, string | number>) =>

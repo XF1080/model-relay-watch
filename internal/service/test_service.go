@@ -20,10 +20,41 @@ import (
 var (
 	batchMutex   sync.Mutex
 	batchRunning bool
+	// Progress tracking
+	batchTotal     int
+	batchCompleted int
+	batchCurrent   string // model currently being tested
+	progressMu     sync.RWMutex
 )
 
 func IsBatchRunning() bool {
 	return batchRunning
+}
+
+type BatchProgress struct {
+	Running   bool   `json:"running"`
+	Total     int    `json:"total"`
+	Completed int    `json:"completed"`
+	Current   string `json:"current"`
+}
+
+func GetBatchProgress() BatchProgress {
+	progressMu.RLock()
+	defer progressMu.RUnlock()
+	return BatchProgress{
+		Running:   batchRunning,
+		Total:     batchTotal,
+		Completed: batchCompleted,
+		Current:   batchCurrent,
+	}
+}
+
+func setProgress(total, completed int, current string) {
+	progressMu.Lock()
+	batchTotal = total
+	batchCompleted = completed
+	batchCurrent = current
+	progressMu.Unlock()
 }
 
 type netTimings struct {
@@ -252,6 +283,7 @@ func TestAllModels(channelID uint) error {
 	}
 	batchRunning = true
 	defer func() {
+		setProgress(0, 0, "")
 		batchRunning = false
 		batchMutex.Unlock()
 	}()
@@ -271,30 +303,111 @@ func TestAllModels(channelID uint) error {
 	thresholdMs := int64(thresholdSec * 1000)
 	keywords := parseKeywords(GetSetting("disable_keywords"))
 
-	for _, ch := range channels {
+	// Collect all tasks
+	var tasks []testTask
+	for i := range channels {
 		var models []model.ModelEntry
-		model.DB.Where("channel_id = ? AND status != ?", ch.ID, model.ChannelStatusManuallyDisabled).Find(&models)
-
-		for i := range models {
-			entry := &models[i]
-			result := TestSingleModel(entry, &ch)
-
-			if autoDisable && ch.AutoBan && entry.Status == model.ChannelStatusEnabled {
-				if shouldDisable, reason := shouldDisableModel(result, thresholdMs, keywords); shouldDisable {
-					UpdateModelStatus(entry.ID, model.ChannelStatusAutoDisabled)
-					log.Printf("[AUTO-DISABLE] model=%s channel=%s reason=%s", entry.ModelName, ch.Name, reason)
-				}
-			}
-
-			if autoEnable && result.Success && entry.Status == model.ChannelStatusAutoDisabled {
-				UpdateModelStatus(entry.ID, model.ChannelStatusEnabled)
-				log.Printf("[AUTO-ENABLE] model=%s channel=%s", entry.ModelName, ch.Name)
-			}
-
-			time.Sleep(500 * time.Millisecond)
+		model.DB.Where("channel_id = ? AND status != ?", channels[i].ID, model.ChannelStatusManuallyDisabled).Find(&models)
+		for j := range models {
+			tasks = append(tasks, testTask{entry: &models[j], ch: &channels[i]})
 		}
 	}
+
+	setProgress(len(tasks), 0, "")
+	runTestsConcurrently(tasks, autoDisable, autoEnable, thresholdMs, keywords)
 	return nil
+}
+
+func TestSelectedModels(ids []uint) error {
+	if !batchMutex.TryLock() {
+		return fmt.Errorf("batch test already in progress")
+	}
+	batchRunning = true
+	defer func() {
+		setProgress(0, 0, "")
+		batchRunning = false
+		batchMutex.Unlock()
+	}()
+
+	autoDisable := GetSettingBool("auto_disable_enabled")
+	autoEnable := GetSettingBool("auto_enable_enabled")
+	thresholdSec := GetSettingFloat("channel_disable_threshold_seconds")
+	thresholdMs := int64(thresholdSec * 1000)
+	keywords := parseKeywords(GetSetting("disable_keywords"))
+
+	var tasks []testTask
+	for _, id := range ids {
+		entry, err := GetModel(id)
+		if err != nil {
+			continue
+		}
+		var ch model.Channel
+		if err := model.DB.First(&ch, entry.ChannelID).Error; err != nil {
+			continue
+		}
+		chCopy := ch
+		tasks = append(tasks, testTask{entry: entry, ch: &chCopy})
+	}
+
+	setProgress(len(tasks), 0, "")
+	runTestsConcurrently(tasks, autoDisable, autoEnable, thresholdMs, keywords)
+	return nil
+}
+
+// testTask represents a single model test to run
+type testTask struct {
+	entry *model.ModelEntry
+	ch    *model.Channel
+}
+
+// runTestsConcurrently executes test tasks with a worker pool
+func runTestsConcurrently(tasks []testTask, autoDisable, autoEnable bool, thresholdMs int64, keywords []string) {
+	if len(tasks) == 0 {
+		return
+	}
+
+	concurrency := 5
+	if len(tasks) < concurrency {
+		concurrency = len(tasks)
+	}
+
+	var completed int32
+	var mu sync.Mutex
+	taskCh := make(chan testTask, len(tasks))
+
+	for _, t := range tasks {
+		taskCh <- t
+	}
+	close(taskCh)
+
+	var wg sync.WaitGroup
+	for w := 0; w < concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for t := range taskCh {
+				setProgress(len(tasks), int(completed), t.entry.ModelName+" @ "+t.ch.Name)
+
+				result := TestSingleModel(t.entry, t.ch)
+
+				if autoDisable && t.ch.AutoBan && t.entry.Status == model.ChannelStatusEnabled {
+					if shouldDisable, reason := shouldDisableModel(result, thresholdMs, keywords); shouldDisable {
+						UpdateModelStatus(t.entry.ID, model.ChannelStatusAutoDisabled)
+						log.Printf("[AUTO-DISABLE] model=%s channel=%s reason=%s", t.entry.ModelName, t.ch.Name, reason)
+					}
+				}
+				if autoEnable && result.Success && t.entry.Status == model.ChannelStatusAutoDisabled {
+					UpdateModelStatus(t.entry.ID, model.ChannelStatusEnabled)
+					log.Printf("[AUTO-ENABLE] model=%s channel=%s", t.entry.ModelName, t.ch.Name)
+				}
+
+				mu.Lock()
+				completed++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func shouldDisableModel(result *model.TestResult, thresholdMs int64, keywords []string) (bool, string) {
@@ -338,48 +451,4 @@ func parseKeywords(s string) []string {
 		}
 	}
 	return result
-}
-
-func TestSelectedModels(ids []uint) error {
-	if !batchMutex.TryLock() {
-		return fmt.Errorf("batch test already in progress")
-	}
-	batchRunning = true
-	defer func() {
-		batchRunning = false
-		batchMutex.Unlock()
-	}()
-
-	autoDisable := GetSettingBool("auto_disable_enabled")
-	autoEnable := GetSettingBool("auto_enable_enabled")
-	thresholdSec := GetSettingFloat("channel_disable_threshold_seconds")
-	thresholdMs := int64(thresholdSec * 1000)
-	keywords := parseKeywords(GetSetting("disable_keywords"))
-
-	for _, id := range ids {
-		entry, err := GetModel(id)
-		if err != nil {
-			continue
-		}
-		var ch model.Channel
-		if err := model.DB.First(&ch, entry.ChannelID).Error; err != nil {
-			continue
-		}
-
-		result := TestSingleModel(entry, &ch)
-
-		if autoDisable && ch.AutoBan && entry.Status == model.ChannelStatusEnabled {
-			if shouldDisable, reason := shouldDisableModel(result, thresholdMs, keywords); shouldDisable {
-				UpdateModelStatus(entry.ID, model.ChannelStatusAutoDisabled)
-				log.Printf("[AUTO-DISABLE] model=%s channel=%s reason=%s", entry.ModelName, ch.Name, reason)
-			}
-		}
-		if autoEnable && result.Success && entry.Status == model.ChannelStatusAutoDisabled {
-			UpdateModelStatus(entry.ID, model.ChannelStatusEnabled)
-			log.Printf("[AUTO-ENABLE] model=%s channel=%s", entry.ModelName, ch.Name)
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-	return nil
 }

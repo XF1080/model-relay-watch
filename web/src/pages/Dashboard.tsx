@@ -609,6 +609,7 @@ function MonitorPanel() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [models, setModels] = useState<ModelStat[]>([]);
   const [testing, setTesting] = useState(false);
+  const [progress, setProgress] = useState({ total: 0, completed: 0, current: '' });
   const [channelFilter, setChannelFilter] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('score');
@@ -635,7 +636,10 @@ function MonitorPanel() {
   const load = () => {
     getDashboard().then(setData);
     getModelStats().then(setModels);
-    getTestStatus().then(setTesting);
+    getTestStatus().then(s => {
+      setTesting(s.running);
+      setProgress({ total: s.total, completed: s.completed, current: s.current });
+    });
   };
 
   useEffect(() => { load(); }, []);
@@ -643,11 +647,13 @@ function MonitorPanel() {
   useEffect(() => {
     if (!testing) return;
     const timer = setInterval(() => {
-      getTestStatus().then(running => {
-        setTesting(running);
-        if (!running) { load(); clearInterval(timer); }
+      getTestStatus().then(s => {
+        setTesting(s.running);
+        setProgress({ total: s.total, completed: s.completed, current: s.current });
+        if (!s.running) { load(); clearInterval(timer); }
+        else { getModelStats().then(setModels); } // refresh data during test
       });
-    }, 3000);
+    }, 2000);
     return () => clearInterval(timer);
   }, [testing]);
 
@@ -727,7 +733,7 @@ function MonitorPanel() {
   // Test button label
   const visibleModelCount = groups.flatMap(g => g.channels).length;
   const testBtnLabel = testing
-    ? '测试中...'
+    ? `测试中 ${progress.completed}/${progress.total}`
     : selected.size > 0
       ? `▶ 测试所选 (${selected.size})`
       : (channelFilter || modelFilter)
@@ -751,6 +757,27 @@ function MonitorPanel() {
           </button>
         </div>
       </div>
+
+      {/* Progress bar */}
+      {testing && progress.total > 0 && (
+        <div style={{ marginBottom: 16, background: '#fff', borderRadius: 10, border: '1px solid #ececf1', padding: '12px 18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#6366f1' }}>
+              测试进度 {progress.completed}/{progress.total}
+            </span>
+            <span style={{ fontSize: 11, color: '#9ca3af', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {progress.current}
+            </span>
+          </div>
+          <div style={{ height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 3, transition: 'width .3s',
+              width: `${Math.round((progress.completed / progress.total) * 100)}%`,
+              background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+            }} />
+          </div>
+        </div>
+      )}
 
       {/* Stat Cards */}
       {data && (
