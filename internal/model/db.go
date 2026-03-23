@@ -52,7 +52,11 @@ func SeedDefaults(channelName, channelURL, channelKey string) {
 // SeedOfficialPricing inserts official pricing entries that don't exist yet.
 // Existing custom entries are preserved.
 func SeedOfficialPricing(items []ModelPricing) {
-	for _, item := range items {
-		DB.Where(ModelPricing{ModelKey: item.ModelKey}).FirstOrCreate(&item)
+	for i := range items {
+		var existing ModelPricing
+		result := DB.Where("model_key = ?", items[i].ModelKey).First(&existing)
+		if result.RowsAffected == 0 {
+			DB.Create(&items[i])
+		}
 	}
 }

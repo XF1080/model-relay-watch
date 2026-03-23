@@ -149,9 +149,9 @@ function PricingModal({ onClose }: { onClose: () => void }) {
 
   const handleAdd = () => {
     const key = newKey.trim().toLowerCase();
-    if (!key) return;
+    if (!key) { setMsg('请输入模型名称'); return; }
     if (rows.some(r => r.model_key === key) || edits[key]) {
-      setMsg(`${key} 已存在`);
+      setMsg(`${key} 已存在，请直接修改`);
       return;
     }
     setEdits(prev => ({
@@ -159,7 +159,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
       [key]: { model_key: key, input_price: 0, output_price: 0, cache_read_ratio: 0.1, cache_write_ratio: 0 },
     }));
     setNewKey('');
-    setMsg('');
+    setMsg(`已添加 ${key}，请填写价格后保存`);
   };
 
   const inputStyle: React.CSSProperties = {
@@ -291,7 +291,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
           padding: '12px 24px', borderTop: '1px solid #f0f0f0',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <div style={{ fontSize: 12, color: msg.includes('失败') || msg.includes('存在') ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
+          <div style={{ fontSize: 12, color: msg.includes('失败') || msg.includes('请') || msg.includes('已存在') ? '#ef4444' : msg.includes('已添加') ? '#3b82f6' : '#22c55e', fontWeight: 600 }}>
             {msg}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
