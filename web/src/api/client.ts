@@ -66,7 +66,7 @@ export const getTokenStats = (range: string, start?: string, end?: string) =>
 
 // Pricing
 export const getPricing = () =>
-  api.get<{ official: any[]; custom: any[] }>('/pricing').then(r => r.data);
+  api.get<{ data: any[] }>('/pricing').then(r => r.data.data || []);
 export const savePricing = (items: any[]) =>
   api.put('/pricing', items);
 export const deletePricing = (key: string) =>

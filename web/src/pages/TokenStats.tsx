@@ -82,8 +82,7 @@ function ChartTooltip({ data, barRef }: { data: any; barRef: HTMLDivElement }) {
 
 /* --- Pricing Modal --- */
 function PricingModal({ onClose }: { onClose: () => void }) {
-  const [official, setOfficial] = useState<any[]>([]);
-  const [custom, setCustom] = useState<Record<string, any>>({});
+  const [rows, setRows] = useState<any[]>([]);
   const [edits, setEdits] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -91,31 +90,13 @@ function PricingModal({ onClose }: { onClose: () => void }) {
 
   const reload = () => {
     getPricing().then(d => {
-      setOfficial(d.official || []);
-      const m: Record<string, any> = {};
-      for (const c of (d.custom || [])) m[c.model_key] = c;
-      setCustom(m);
+      setRows(Array.isArray(d) ? d : []);
       setEdits({});
+      setMsg('');
     }).catch(() => setMsg('加载定价失败'));
   };
 
   useEffect(() => { reload(); }, []);
-
-  // Merged list: official + custom-only entries
-  const merged = useMemo(() => {
-    const map = new Map<string, any>();
-    for (const o of official) {
-      const c = custom[o.model_key];
-      map.set(o.model_key, c
-        ? { ...c, isCustom: true, officialIn: o.input_price, officialOut: o.output_price }
-        : { ...o, isCustom: false });
-    }
-    // Custom entries not in official list
-    for (const [key, c] of Object.entries(custom)) {
-      if (!map.has(key)) map.set(key, { ...c, isCustom: true });
-    }
-    return Array.from(map.values()).sort((a, b) => a.model_key.localeCompare(b.model_key));
-  }, [official, custom]);
 
   const getVal = (key: string, field: string, fallback: number) => {
     if (edits[key] && edits[key][field] !== undefined) return edits[key][field];
@@ -125,10 +106,8 @@ function PricingModal({ onClose }: { onClose: () => void }) {
   const setField = (key: string, field: string, val: string) => {
     const num = parseFloat(val);
     if (isNaN(num) && val !== '') return;
-    // Build base from: existing edit > custom > official
     const base = edits[key]
-      || custom[key]
-      || official.find(o => o.model_key === key)
+      || rows.find(r => r.model_key === key)
       || { input_price: 0, output_price: 0, cache_read_ratio: 0.1, cache_write_ratio: 0 };
     setEdits(prev => ({
       ...prev,
@@ -139,15 +118,11 @@ function PricingModal({ onClose }: { onClose: () => void }) {
   const handleSave = async () => {
     const items = Object.values(edits).filter(e => e.model_key);
     if (items.length === 0) { setMsg('没有修改'); return; }
-    // Replace empty string values with 0
     const cleaned = items.map(item => {
       const out: any = { ...item };
       for (const f of ['input_price', 'output_price', 'cache_read_ratio', 'cache_write_ratio']) {
         if (out[f] === '' || out[f] === undefined) out[f] = 0;
       }
-      delete out.isCustom;
-      delete out.officialIn;
-      delete out.officialOut;
       return out;
     });
     setSaving(true);
@@ -165,7 +140,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
   const handleDelete = async (key: string) => {
     try {
       await deletePricing(key);
-      setMsg(`已恢复 ${key} 默认定价`);
+      setMsg(`已删除 ${key}`);
       reload();
     } catch (e: any) {
       setMsg('删除失败: ' + (e.response?.data?.error || e.message));
@@ -175,7 +150,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
   const handleAdd = () => {
     const key = newKey.trim().toLowerCase();
     if (!key) return;
-    if (merged.some(m => m.model_key === key) || edits[key]) {
+    if (rows.some(r => r.model_key === key) || edits[key]) {
       setMsg(`${key} 已存在`);
       return;
     }
@@ -184,6 +159,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
       [key]: { model_key: key, input_price: 0, output_price: 0, cache_read_ratio: 0.1, cache_write_ratio: 0 },
     }));
     setNewKey('');
+    setMsg('');
   };
 
   const inputStyle: React.CSSProperties = {
@@ -192,12 +168,12 @@ function PricingModal({ onClose }: { onClose: () => void }) {
     boxSizing: 'border-box',
   };
 
+  // Combine DB rows + unsaved new entries
   const allRows = useMemo(() => {
-    // Merge official+custom list with new edits not yet in list
-    const keys = new Set(merged.map(m => m.model_key));
-    const extra = Object.values(edits).filter(e => !keys.has(e.model_key));
-    return [...merged, ...extra.map(e => ({ ...e, isCustom: false, isNew: true }))];
-  }, [merged, edits]);
+    const keys = new Set(rows.map(r => r.model_key));
+    const newEntries = Object.values(edits).filter(e => !keys.has(e.model_key));
+    return [...rows, ...newEntries.map(e => ({ ...e, isNew: true }))];
+  }, [rows, edits]);
 
   return (
     <div style={{
@@ -215,7 +191,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
         }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#16192c' }}>定价设置</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>单位: $/百万 tokens，自定义定价优先于官方默认</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>单位: $/百万 tokens，修改后点保存生效</div>
           </div>
           <button onClick={onClose} style={{
             width: 30, height: 30, borderRadius: 8, border: 'none', background: '#f3f4f6',
@@ -267,9 +243,6 @@ function PricingModal({ onClose }: { onClose: () => void }) {
                   }}>
                     <td style={{ padding: '8px 8px 8px 24px', fontWeight: 600, color: hasEdit ? '#6366f1' : '#16192c', whiteSpace: 'nowrap' }}>
                       {key}
-                      {item.isCustom && !hasEdit && (
-                        <span style={{ marginLeft: 6, fontSize: 9, color: '#6366f1', background: 'rgba(99,102,241,.08)', padding: '1px 6px', borderRadius: 4 }}>自定义</span>
-                      )}
                       {hasEdit && (
                         <span style={{ marginLeft: 6, fontSize: 9, color: '#f59e0b', background: 'rgba(245,158,11,.08)', padding: '1px 6px', borderRadius: 4 }}>未保存</span>
                       )}
@@ -294,13 +267,11 @@ function PricingModal({ onClose }: { onClose: () => void }) {
                         value={getVal(key, 'cache_write_ratio', item.cache_write_ratio)}
                         onChange={e => setField(key, 'cache_write_ratio', e.target.value)} />
                     </td>
-                    <td style={{ textAlign: 'center', padding: '4px 8px' }}>
-                      {item.isCustom && (
-                        <button onClick={() => handleDelete(key)} style={{
-                          fontSize: 11, color: '#ef4444', background: 'rgba(239,68,68,.06)', border: 'none',
-                          cursor: 'pointer', padding: '3px 8px', borderRadius: 4, fontWeight: 600,
-                        }}>恢复默认</button>
-                      )}
+                    <td style={{ textAlign: 'center', padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                      <button onClick={() => handleDelete(key)} style={{
+                        fontSize: 11, color: '#ef4444', background: 'rgba(239,68,68,.06)', border: 'none',
+                        cursor: 'pointer', padding: '3px 8px', borderRadius: 4, fontWeight: 600,
+                      }}>删除</button>
                       {hasEdit && (
                         <button onClick={() => setEdits(prev => { const n = { ...prev }; delete n[key]; return n; })} style={{
                           fontSize: 11, color: '#6b7280', background: 'rgba(107,114,128,.06)', border: 'none',

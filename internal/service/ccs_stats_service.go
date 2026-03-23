@@ -189,6 +189,21 @@ func ListOfficialPricing() []OfficialPricingItem {
 	return items
 }
 
+// SeedOfficialPricing inserts official pricing into DB (only missing entries)
+func SeedOfficialPricing() {
+	var items []model.ModelPricing
+	for k, p := range officialPricing {
+		items = append(items, model.ModelPricing{
+			ModelKey:        k,
+			InputPrice:      p.In,
+			OutputPrice:     p.Out,
+			CacheReadRatio:  p.CacheReadRatio,
+			CacheWriteRatio: p.CacheWriteRatio,
+		})
+	}
+	model.SeedOfficialPricing(items)
+}
+
 func estimateCost(modelName string, inTok, outTok, cacheRead, cacheWrite int64) float64 {
 	p := lookupPrice(modelName)
 	inCost := float64(inTok) * p.In / 1_000_000

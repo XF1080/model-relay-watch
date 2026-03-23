@@ -41,6 +41,7 @@ func main() {
 
 	// Seed defaults
 	model.SeedDefaults(*channelName, *channelURL, *channelKey)
+	service.SeedOfficialPricing()
 
 	// Setup router
 	gin.SetMode(gin.ReleaseMode)

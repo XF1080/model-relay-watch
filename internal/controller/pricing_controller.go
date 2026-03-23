@@ -2,21 +2,19 @@ package controller
 
 import (
 	"model-monitor/internal/model"
-	"model-monitor/internal/service"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-// GET /api/v1/pricing - returns official + custom pricing
+// GET /api/v1/pricing - returns all pricing from DB
 func ListPricing(c *gin.Context) {
-	official := service.ListOfficialPricing()
-	var custom []model.ModelPricing
-	model.DB.Find(&custom)
-	c.JSON(http.StatusOK, gin.H{"official": official, "custom": custom})
+	var items []model.ModelPricing
+	model.DB.Order("model_key").Find(&items)
+	c.JSON(http.StatusOK, gin.H{"data": items})
 }
 
-// PUT /api/v1/pricing - save custom pricing overrides
+// PUT /api/v1/pricing - save pricing entries (upsert)
 func SavePricing(c *gin.Context) {
 	var items []model.ModelPricing
 	if err := c.ShouldBindJSON(&items); err != nil {
@@ -32,7 +30,7 @@ func SavePricing(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "saved"})
 }
 
-// DELETE /api/v1/pricing/:key - remove custom override
+// DELETE /api/v1/pricing/:key - delete a pricing entry
 func DeletePricing(c *gin.Context) {
 	key := c.Param("key")
 	model.DB.Delete(&model.ModelPricing{}, "model_key = ?", key)

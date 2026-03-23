@@ -585,16 +585,20 @@ export default function Dashboard() {
   return (
     <div>
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f3f4f6', borderRadius: 10, padding: 3, width: 'fit-content' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '7px 20px', fontSize: 13, fontWeight: 600, borderRadius: 8,
-            border: 'none', cursor: 'pointer', transition: 'all .15s',
-            background: tab === t.key ? '#fff' : 'transparent',
-            color: tab === t.key ? '#6366f1' : '#9ca3af',
-            boxShadow: tab === t.key ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
-          }}>{t.label}</button>
-        ))}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid #f0f0f0', width: 'fit-content' }}>
+        {tabs.map(t => {
+          const active = tab === t.key;
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              padding: '10px 24px', fontSize: 14, fontWeight: 600, borderRadius: 0,
+              border: 'none', cursor: 'pointer', transition: 'all .15s',
+              background: 'transparent',
+              color: active ? '#6366f1' : '#6b7280',
+              borderBottom: active ? '2px solid #6366f1' : '2px solid transparent',
+              marginBottom: -2,
+            }}>{t.label}</button>
+          );
+        })}
       </div>
       {tab === 'monitor' ? <MonitorPanel /> : <TokenStats />}
     </div>
