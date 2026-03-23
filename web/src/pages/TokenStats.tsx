@@ -343,20 +343,27 @@ function PricingModal({ onClose }: { onClose: () => void }) {
 export default function TokenStats() {
   const [data, setData] = useState<any>(null);
   const [range, setRange] = useState('24h');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hoverBar, setHoverBar] = useState<{ idx: number; el: HTMLDivElement } | null>(null);
   const [showPricing, setShowPricing] = useState(false);
 
-  const load = useCallback((r: string) => {
+  const load = useCallback(() => {
     setLoading(true); setError('');
-    getTokenStats(r)
+    const start = range === 'custom' ? customStart : undefined;
+    const end = range === 'custom' ? customEnd : undefined;
+    getTokenStats(range, start, end)
       .then(setData)
       .catch((e: any) => { setError(e.response?.data?.error || '加载失败'); setData(null); })
       .finally(() => setLoading(false));
-  }, []);
-  useEffect(() => { load(range); }, [range, load]);
+  }, [range, customStart, customEnd]);
+  useEffect(() => {
+    if (range === 'custom' && !customStart) return; // wait for date selection
+    load();
+  }, [range, customStart, customEnd, load]);
 
   const allGroups: any[] = data?.groups || [];
 
@@ -402,7 +409,6 @@ export default function TokenStats() {
     { key: '24h', label: '24 小时' },
     { key: '7d',  label: '7 天' },
     { key: '30d', label: '30 天' },
-    { key: '90d', label: '90 天' },
     { key: 'all', label: '全部' },
   ];
 
@@ -423,16 +429,40 @@ export default function TokenStats() {
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#ececf1'; e.currentTarget.style.color = '#6b7280'; }}
           >&#9881; 定价设置</button>
         </div>
-        <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 10, padding: 3 }}>
-          {ranges.map(r => (
-            <button key={r.key} onClick={() => setRange(r.key)} style={{
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 10, padding: 3 }}>
+            {ranges.map(r => (
+              <button key={r.key} onClick={() => { setRange(r.key); }} style={{
+                padding: '6px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8,
+                border: 'none', cursor: 'pointer', transition: 'all .15s',
+                background: range === r.key ? '#fff' : 'transparent',
+                color: range === r.key ? '#6366f1' : '#9ca3af',
+                boxShadow: range === r.key ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
+              }}>{r.label}</button>
+            ))}
+            <button onClick={() => setRange('custom')} style={{
               padding: '6px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8,
               border: 'none', cursor: 'pointer', transition: 'all .15s',
-              background: range === r.key ? '#fff' : 'transparent',
-              color: range === r.key ? '#6366f1' : '#9ca3af',
-              boxShadow: range === r.key ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
-            }}>{r.label}</button>
-          ))}
+              background: range === 'custom' ? '#fff' : 'transparent',
+              color: range === 'custom' ? '#6366f1' : '#9ca3af',
+              boxShadow: range === 'custom' ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
+            }}>自定义</button>
+          </div>
+          {range === 'custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                style={{
+                  height: 32, padding: '0 8px', borderRadius: 6, border: '1px solid #e5e7eb',
+                  fontSize: 12, color: '#16192c', outline: 'none',
+                }} />
+              <span style={{ color: '#9ca3af', fontSize: 12 }}>至</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                style={{
+                  height: 32, padding: '0 8px', borderRadius: 6, border: '1px solid #e5e7eb',
+                  fontSize: 12, color: '#16192c', outline: 'none',
+                }} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -668,7 +698,7 @@ export default function TokenStats() {
         })}
       </>}
 
-      {showPricing && <PricingModal onClose={() => { setShowPricing(false); load(range); }} />}
+      {showPricing && <PricingModal onClose={() => { setShowPricing(false); load(); }} />}
     </div>
   );
 }

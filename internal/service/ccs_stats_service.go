@@ -361,25 +361,50 @@ func sortModels(models []TokenStatsModel) {
 	})
 }
 
-func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
+func GetClaudeTokenStats(timeRange string, startStr, endStr string) (*TokenStatsResponse, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("无法获取用户目录: %w", err)
 	}
 
 	var since time.Time
+	var until time.Time
 	now := time.Now()
-	switch timeRange {
-	case "7d":
-		since = now.Add(-7 * 24 * time.Hour)
-	case "30d":
-		since = now.Add(-30 * 24 * time.Hour)
-	case "90d":
-		since = now.Add(-90 * 24 * time.Hour)
-	case "all":
-		since = time.Time{} // zero time = no filter
-	default:
-		since = now.Add(-24 * time.Hour)
+
+	if startStr != "" {
+		// Custom date range
+		parsed, err := time.ParseInLocation("2006-01-02", startStr, time.Local)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start date: %w", err)
+		}
+		since = parsed
+		if endStr != "" {
+			parsed, err := time.ParseInLocation("2006-01-02", endStr, time.Local)
+			if err != nil {
+				return nil, fmt.Errorf("invalid end date: %w", err)
+			}
+			until = parsed.Add(24*time.Hour - time.Second) // end of day
+		}
+		// Determine bucket size from custom range span
+		days := now.Sub(since).Hours() / 24
+		if !until.IsZero() {
+			days = until.Sub(since).Hours() / 24
+		}
+		timeRange = "custom"
+		_ = days // used below for timeline bucketing
+	} else {
+		switch timeRange {
+		case "7d":
+			since = now.Add(-7 * 24 * time.Hour)
+		case "30d":
+			since = now.Add(-30 * 24 * time.Hour)
+		case "90d":
+			since = now.Add(-90 * 24 * time.Hour)
+		case "all":
+			since = time.Time{} // zero time = no filter
+		default:
+			since = now.Add(-24 * time.Hour)
+		}
 	}
 
 	// Collect records from both tools
@@ -419,6 +444,20 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 
 	if len(records) == 0 {
 		return &TokenStatsResponse{}, nil
+	}
+
+	// Filter by end date if custom range
+	if !until.IsZero() {
+		filtered := records[:0]
+		for _, r := range records {
+			if !r.Timestamp.After(until) {
+				filtered = append(filtered, r)
+			}
+		}
+		records = filtered
+		if len(records) == 0 {
+			return &TokenStatsResponse{}, nil
+		}
 	}
 
 	sort.Slice(records, func(i, j int) bool {
@@ -502,6 +541,23 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 	var bucketSec int64
 	var timeFmt string
 	switch timeRange {
+	case "custom":
+		// Determine bucket size from span
+		span := now.Sub(since)
+		if !until.IsZero() {
+			span = until.Sub(since)
+		}
+		days := span.Hours() / 24
+		if days <= 1 {
+			bucketSec = 3600
+			timeFmt = "15:04"
+		} else if days <= 7 {
+			bucketSec = 21600
+			timeFmt = "01-02 15:04"
+		} else {
+			bucketSec = 86400
+			timeFmt = "01-02"
+		}
 	case "90d", "all":
 		bucketSec = 86400
 		timeFmt = "01-02"
@@ -516,9 +572,12 @@ func GetClaudeTokenStats(timeRange string) (*TokenStatsResponse, error) {
 		timeFmt = "15:04"
 	}
 	sinceU := since.Unix()
-	nowU := now.Unix()
+	endU := now.Unix()
+	if !until.IsZero() {
+		endU = until.Unix()
+	}
 	bStart := (sinceU / bucketSec) * bucketSec
-	bEnd := ((nowU / bucketSec) + 1) * bucketSec
+	bEnd := ((endU / bucketSec) + 1) * bucketSec
 	buckets := make(map[int64]*TokenStatsTimeline)
 	for ts := bStart; ts < bEnd; ts += bucketSec {
 		buckets[ts] = &TokenStatsTimeline{Time: time.Unix(ts, 0).Format(timeFmt)}

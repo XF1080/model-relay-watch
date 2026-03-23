@@ -7,10 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GET /api/v1/stats/tokens?range=24h|7d|30d
+// GET /api/v1/stats/tokens?range=24h|7d|30d|all&start=2006-01-02&end=2006-01-02
 func GetTokenStats(c *gin.Context) {
 	timeRange := c.DefaultQuery("range", "24h")
-	data, err := service.GetClaudeTokenStats(timeRange)
+	start := c.Query("start")
+	end := c.Query("end")
+	data, err := service.GetClaudeTokenStats(timeRange, start, end)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
