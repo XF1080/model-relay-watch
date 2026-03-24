@@ -63,11 +63,10 @@ func GetChannel(c *gin.Context) {
 
 func CreateChannel(c *gin.Context) {
 	var input struct {
-		Name       string `json:"name"`
-		Type       string `json:"type"`
-		Tag        string `json:"tag"`
-		ToolSource string `json:"tool_source"`
-		BaseURL    string `json:"base_url"`
+		Name      string `json:"name"`
+		Type      string `json:"type"`
+		Tag       string `json:"tag"`
+		BaseURL   string `json:"base_url"`
 		APIKey    string `json:"api_key"`
 		AutoBan   *bool  `json:"auto_ban"`
 		TestModel string `json:"test_model"`
@@ -83,11 +82,10 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 	ch := model.Channel{
-		Name:       input.Name,
-		Type:       input.Type,
-		Tag:        input.Tag,
-		ToolSource: input.ToolSource,
-		BaseURL:    normalizeBaseURL(input.BaseURL),
+		Name:      input.Name,
+		Type:      input.Type,
+		Tag:       input.Tag,
+		BaseURL:   normalizeBaseURL(input.BaseURL),
 		APIKey:    input.APIKey,
 		TestModel: input.TestModel,
 		Priority:  input.Priority,
@@ -118,11 +116,10 @@ func UpdateChannel(c *gin.Context) {
 	}
 
 	var input struct {
-		Name       *string `json:"name"`
-		Type       *string `json:"type"`
-		Tag        *string `json:"tag"`
-		ToolSource *string `json:"tool_source"`
-		BaseURL    *string `json:"base_url"`
+		Name      *string `json:"name"`
+		Type      *string `json:"type"`
+		Tag       *string `json:"tag"`
+		BaseURL   *string `json:"base_url"`
 		APIKey    *string `json:"api_key"`
 		AutoBan   *bool   `json:"auto_ban"`
 		TestModel *string `json:"test_model"`
@@ -142,9 +139,6 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if input.Tag != nil {
 		existing.Tag = *input.Tag
-	}
-	if input.ToolSource != nil {
-		existing.ToolSource = *input.ToolSource
 	}
 	if input.BaseURL != nil {
 		existing.BaseURL = normalizeBaseURL(*input.BaseURL)

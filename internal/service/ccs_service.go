@@ -144,28 +144,35 @@ func SyncCCSProviders() (int, error) {
 			continue
 		}
 
-		// Determine channel type and tag
+		// Determine channel type, tag, and tool_source
 		chType := model.ChannelTypeOpenAI
 		chTag := "other"
+		toolSource := ""
 		switch {
 		case p.AppType == "claude":
 			chType = model.ChannelTypeAnthropic
 			chTag = "claude"
+			toolSource = "claude_code"
 		case strings.Contains(strings.ToLower(p.AppType), "codex"):
 			chTag = "codex"
-		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "gemini") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "google"):
+			toolSource = "codex"
+		case strings.Contains(strings.ToLower(p.AppType), "gemini") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "gemini") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "google"):
 			chTag = "gemini"
+			toolSource = "gemini_cli"
 		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "deepseek"):
 			chTag = "deepseek"
+			toolSource = "codex"
 		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "openai") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "chatgpt"):
 			chTag = "openai"
+			toolSource = "codex"
 		}
 
 		ch := model.Channel{
-			Name:    fmt.Sprintf("%s (%s)", p.Name, p.AppType),
-			Type:    chType,
-			Tag:     chTag,
-			BaseURL: p.BaseURL,
+			Name:       fmt.Sprintf("%s (%s)", p.Name, p.AppType),
+			Type:       chType,
+			Tag:        chTag,
+			ToolSource: toolSource,
+			BaseURL:    p.BaseURL,
 			APIKey:  p.APIKey,
 			Status:  model.ChannelStatusEnabled,
 			AutoBan: true,
