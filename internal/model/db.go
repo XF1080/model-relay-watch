@@ -2,6 +2,7 @@ package model
 
 import (
 	"log"
+	"strings"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -25,6 +26,8 @@ func InitDB(dbPath string) {
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
+
+	backfillToolSource()
 }
 
 func SeedDefaults(channelName, channelURL, channelKey string) {
@@ -59,4 +62,35 @@ func SeedOfficialPricing(items []ModelPricing) {
 			DB.Create(&items[i])
 		}
 	}
+}
+
+// backfillToolSource sets tool_source for existing channels that were synced
+// from CCS before the tool_source field was added.
+// Channel names from CCS have the format "Name (AppType)".
+func backfillToolSource() {
+	var channels []Channel
+	DB.Where("tool_source = '' OR tool_source IS NULL").Find(&channels)
+	for _, ch := range channels {
+		ts := inferToolSource(ch.Name)
+		if ts != "" {
+			DB.Model(&Channel{}).Where("id = ?", ch.ID).Update("tool_source", ts)
+		}
+	}
+}
+
+func inferToolSource(name string) string {
+	lower := strings.ToLower(name)
+	// CCS sync names: "ProviderName (app_type)"
+	if idx := strings.LastIndex(lower, "("); idx >= 0 {
+		appType := strings.TrimSuffix(strings.TrimSpace(lower[idx+1:]), ")")
+		switch {
+		case appType == "claude" || strings.Contains(appType, "claude"):
+			return "claude_code"
+		case strings.Contains(appType, "codex"):
+			return "codex"
+		case strings.Contains(appType, "gemini"):
+			return "gemini_cli"
+		}
+	}
+	return ""
 }
