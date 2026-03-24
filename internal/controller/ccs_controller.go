@@ -42,10 +42,16 @@ func ListCCSProviders(c *gin.Context) {
 
 // POST /api/v1/ccs/sync - import CC-Switch providers as channels
 func SyncCCSProviders(c *gin.Context) {
-	added, err := service.SyncCCSProviders()
+	cleanup := c.Query("cleanup") == "true"
+	res, err := service.SyncCCSProviders(cleanup)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "同步完成", "added": added})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "同步完成",
+		"added":   res.Added,
+		"updated": res.Updated,
+		"removed": res.Removed,
+	})
 }

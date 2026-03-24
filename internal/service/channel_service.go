@@ -41,6 +41,16 @@ func DeleteChannel(id uint) error {
 	return model.DB.Delete(&model.Channel{}, id).Error
 }
 
+func BatchDeleteChannels(ids []uint) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	model.DB.Where("channel_id IN ?", ids).Delete(&model.TestResult{})
+	model.DB.Where("channel_id IN ?", ids).Delete(&model.ModelEntry{})
+	result := model.DB.Where("id IN ?", ids).Delete(&model.Channel{})
+	return int(result.RowsAffected), result.Error
+}
+
 func UpdateChannelStatus(id uint, status int) error {
 	return model.DB.Model(&model.Channel{}).Where("id = ?", id).Update("status", status).Error
 }

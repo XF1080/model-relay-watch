@@ -23,6 +23,7 @@ func Setup(r *gin.Engine, frontendFS *embed.FS) {
 			ch.POST("", controller.CreateChannel)
 			ch.PUT("/:id", controller.UpdateChannel)
 			ch.DELETE("/:id", controller.DeleteChannel)
+			ch.POST("/batch-delete", controller.BatchDeleteChannels)
 			ch.PUT("/:id/status", controller.UpdateChannelStatus)
 			ch.POST("/:id/discover", controller.DiscoverModels)
 		}

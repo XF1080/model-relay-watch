@@ -9,6 +9,7 @@ export const getChannel = (id: number) => api.get<{ data: Channel }>(`/channels/
 export const createChannel = (ch: Partial<Channel> & { api_key?: string }) => api.post('/channels', ch).then(r => r.data.data);
 export const updateChannel = (id: number, ch: Record<string, unknown>) => api.put(`/channels/${id}`, ch).then(r => r.data.data);
 export const deleteChannel = (id: number) => api.delete(`/channels/${id}`);
+export const batchDeleteChannels = (ids: number[]) => api.post<{ deleted: number }>('/channels/batch-delete', { ids }).then(r => r.data);
 export const updateChannelStatus = (id: number, status: number) => api.put(`/channels/${id}/status`, { status });
 export const discoverModels = (id: number) => api.post<{ new_models: number; data: ModelEntry[] }>(`/channels/${id}/discover`).then(r => r.data);
 
@@ -60,8 +61,8 @@ export const detectCCSPath = () =>
   api.get<{ found: boolean; path?: string }>('/ccs/detect').then(r => r.data);
 export const listCCSProviders = () =>
   api.get<{ data: any[] }>('/ccs/providers').then(r => r.data.data || []);
-export const syncCCSProviders = () =>
-  api.post<{ message: string; added: number }>('/ccs/sync').then(r => r.data);
+export const syncCCSProviders = (cleanup?: boolean) =>
+  api.post<{ message: string; added: number; updated: number; removed: number }>(`/ccs/sync${cleanup ? '?cleanup=true' : ''}`).then(r => r.data);
 
 // Token Stats (from CCS proxy_request_logs)
 export const getTokenStats = (range: string, start?: string, end?: string) =>

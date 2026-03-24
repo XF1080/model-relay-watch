@@ -184,6 +184,22 @@ func DeleteChannel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
+func BatchDeleteChannels(c *gin.Context) {
+	var input struct {
+		IDs []uint `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	deleted, err := service.BatchDeleteChannels(input.IDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "deleted", "deleted": deleted})
+}
+
 func UpdateChannelStatus(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 	var input struct {

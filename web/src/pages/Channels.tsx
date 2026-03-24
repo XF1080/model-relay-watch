@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Button, Space, Modal, Form, Toast, Spin, Dropdown } from '@douyinfe/semi-ui';
 import { IconPlus, IconSearch, IconRefresh, IconDelete, IconEdit, IconPlayCircle, IconMore, IconLink, IconKey, IconClock, IconChevronDown, IconChevronRight } from '@douyinfe/semi-icons';
-import { listChannels, createChannel, updateChannel, deleteChannel, discoverModels, updateChannelStatus, testChannel } from '../api/client';
+import { listChannels, createChannel, updateChannel, deleteChannel, batchDeleteChannels, discoverModels, updateChannelStatus, testChannel, syncCCSProviders } from '../api/client';
 import type { Channel } from '../types';
 import { StatusEnabled, StatusManuallyDisabled } from '../types';
 
@@ -96,6 +96,69 @@ export default function Channels() {
   const [openDropdownId, setOpenDropdownId] = useState<number>(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [groupMode, setGroupMode] = useState<GroupMode>('tool');
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [syncing, setSyncing] = useState(false);
+
+  const toggleSelect = (id: number) =>
+    setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleGroupSelect = (groupChannels: Channel[]) => {
+    const ids = groupChannels.map(c => c.id);
+    const allSelected = ids.every(id => selected.has(id));
+    setSelected(s => {
+      const n = new Set(s);
+      ids.forEach(id => allSelected ? n.delete(id) : n.add(id));
+      return n;
+    });
+  };
+
+  const handleBatchDelete = () => {
+    if (selected.size === 0) return;
+    Modal.confirm({
+      title: '批量删除',
+      content: `确认删除选中的 ${selected.size} 个通道及其所有模型和测试数据？此操作不可恢复。`,
+      okText: '删除', cancelText: '取消',
+      okButtonProps: { type: 'danger' } as any,
+      onOk: async () => {
+        try {
+          const res = await batchDeleteChannels([...selected]);
+          Toast.success(`已删除 ${res.deleted} 个通道`);
+          setSelected(new Set());
+          load();
+        } catch (e: any) {
+          Toast.error(e.response?.data?.error || '删除失败');
+        }
+      },
+    });
+  };
+
+  const handleSync = (cleanup: boolean) => {
+    if (cleanup) {
+      Modal.confirm({
+        title: '全量同步',
+        content: '将从 CCS 同步通道数据，并删除本地已不在 CCS 中的通道。确认继续？',
+        okText: '确认同步', cancelText: '取消',
+        onOk: () => doSync(true),
+      });
+    } else {
+      doSync(false);
+    }
+  };
+  const doSync = async (cleanup: boolean) => {
+    setSyncing(true);
+    try {
+      const res = await syncCCSProviders(cleanup);
+      const parts = [];
+      if (res.added) parts.push(`新增 ${res.added}`);
+      if (res.updated) parts.push(`更新 ${res.updated}`);
+      if (res.removed) parts.push(`删除 ${res.removed}`);
+      Toast.success(parts.length ? parts.join('，') : '无变更');
+      load();
+    } catch (e: any) {
+      Toast.error(e.response?.data?.error || '同步失败');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const load = () => {
     setLoading(true);
@@ -195,6 +258,21 @@ export default function Channels() {
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>共 <b style={{ color: '#6366f1' }}>{channels.length}</b> 个通道</div>
         </div>
         <Space>
+          <Dropdown trigger="click" position="bottomRight" render={
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={() => handleSync(false)}>增量同步（仅新增）</Dropdown.Item>
+              <Dropdown.Item onClick={() => handleSync(true)}>全量同步（同步删除）</Dropdown.Item>
+            </Dropdown.Menu>
+          }>
+            <Button icon={<IconRefresh />} loading={syncing}
+              style={{ height: 36, borderRadius: 10, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>CCS 同步</Button>
+          </Dropdown>
+          {selected.size > 0 && (
+            <Button icon={<IconDelete />} onClick={handleBatchDelete}
+              style={{ height: 36, borderRadius: 10, background: '#ef4444', border: 'none', color: '#fff', fontWeight: 600 }}>
+              删除选中 ({selected.size})
+            </Button>
+          )}
           <Button icon={<IconRefresh />} onClick={load} loading={loading}
             style={{ height: 36, borderRadius: 10, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', fontWeight: 600 }}>刷新</Button>
           <Button icon={<IconPlus />} onClick={() => { setEditing(null); setModalVisible(true); }}
@@ -231,30 +309,39 @@ export default function Channels() {
           {grouped.map(({ key, label, color, icon, channels: groupChannels }) => {
             const isCollapsed = collapsed[key];
             const enabledCount = groupChannels.filter(c => c.status === StatusEnabled).length;
+            const allGroupSelected = groupChannels.length > 0 && groupChannels.every(c => selected.has(c.id));
+            const someGroupSelected = groupChannels.some(c => selected.has(c.id));
 
             return (
               <div key={key}>
                 {/* Group header */}
                 <div
-                  onClick={() => toggleCollapse(key)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, marginBottom: isCollapsed ? 0 : 10,
-                    cursor: 'pointer', userSelect: 'none', padding: '4px 0',
+                    padding: '4px 0',
                   }}
                 >
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 8, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800, color: '#fff', background: color,
-                  }}>{icon}</div>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{label}</span>
-                  <span style={{
-                    fontSize: 11, fontWeight: 600, color: '#9ca3af', background: '#f3f4f6',
-                    padding: '2px 8px', borderRadius: 8,
-                  }}>{enabledCount}/{groupChannels.length}</span>
-                  {isCollapsed
-                    ? <IconChevronRight size="small" style={{ color: '#bbb' }} />
-                    : <IconChevronDown size="small" style={{ color: '#bbb' }} />}
+                  <input type="checkbox" checked={allGroupSelected}
+                    ref={el => { if (el) el.indeterminate = someGroupSelected && !allGroupSelected; }}
+                    onChange={() => toggleGroupSelect(groupChannels)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#6366f1' }} />
+                  <div onClick={() => toggleCollapse(key)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', flex: 1 }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 8, display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      fontSize: 13, fontWeight: 800, color: '#fff', background: color,
+                    }}>{icon}</div>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{label}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, color: '#9ca3af', background: '#f3f4f6',
+                      padding: '2px 8px', borderRadius: 8,
+                    }}>{enabledCount}/{groupChannels.length}</span>
+                    {isCollapsed
+                      ? <IconChevronRight size="small" style={{ color: '#bbb' }} />
+                      : <IconChevronDown size="small" style={{ color: '#bbb' }} />}
+                  </div>
                 </div>
 
                 {/* Channel cards */}
@@ -263,6 +350,7 @@ export default function Channels() {
                     {groupChannels.map(ch => (
                       <ChannelCard
                         key={ch.id} ch={ch}
+                        selected={selected.has(ch.id)} onToggleSelect={() => toggleSelect(ch.id)}
                         discovering={discovering} testingId={testingId}
                         openDropdownId={openDropdownId} setOpenDropdownId={setOpenDropdownId}
                         onDiscover={handleDiscover} onTest={handleTest}
@@ -329,8 +417,9 @@ export default function Channels() {
 }
 
 /* ─── Channel Card (extracted) ──── */
-function ChannelCard({ ch, discovering, testingId, openDropdownId, setOpenDropdownId, onDiscover, onTest, onEdit, onToggleStatus, onDelete }: {
+function ChannelCard({ ch, selected, onToggleSelect, discovering, testingId, openDropdownId, setOpenDropdownId, onDiscover, onTest, onEdit, onToggleStatus, onDelete }: {
   ch: Channel;
+  selected: boolean; onToggleSelect: () => void;
   discovering: number; testingId: number;
   openDropdownId: number; setOpenDropdownId: (id: number) => void;
   onDiscover: (id: number) => void; onTest: (id: number) => void;
@@ -343,8 +432,10 @@ function ChannelCard({ ch, discovering, testingId, openDropdownId, setOpenDropdo
 
   return (
     <div style={{
-      background: '#fff', borderRadius: 14, border: '1px solid #ececf1',
-      padding: '18px 24px', transition: 'box-shadow 0.2s',
+      background: '#fff', borderRadius: 14,
+      border: selected ? '2px solid #6366f1' : '1px solid #ececf1',
+      padding: selected ? '17px 23px' : '18px 24px',
+      transition: 'box-shadow 0.2s, border 0.15s',
       opacity: isEnabled ? 1 : 0.6, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
     }}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'; }}
@@ -353,6 +444,8 @@ function ChannelCard({ ch, discovering, testingId, openDropdownId, setOpenDropdo
       {/* Row 1: Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="checkbox" checked={selected} onChange={onToggleSelect}
+            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#6366f1' }} />
           <div style={{
             width: 10, height: 10, borderRadius: '50%',
             background: isEnabled ? '#22c55e' : '#bbb',

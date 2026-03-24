@@ -130,13 +130,23 @@ func ReadCCSProviders() ([]CCSProvider, error) {
 	return result, nil
 }
 
-func SyncCCSProviders() (int, error) {
+type SyncResult struct {
+	Added   int `json:"added"`
+	Updated int `json:"updated"`
+	Removed int `json:"removed"`
+}
+
+func SyncCCSProviders(cleanup bool) (*SyncResult, error) {
 	providers, err := ReadCCSProviders()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	added := 0
+	res := &SyncResult{}
+
+	// Track which local channel IDs are matched by CCS providers
+	matchedIDs := make(map[uint]bool)
+
 	for _, p := range providers {
 		// tool_source: determined by AppType (which CLI tool)
 		toolSource := ""
@@ -175,12 +185,13 @@ func SyncCCSProviders() (int, error) {
 		var existing model.Channel
 		result := model.DB.Where("base_url = ? AND api_key = ?", p.BaseURL, p.APIKey).First(&existing)
 		if result.RowsAffected > 0 {
-			// Update type and tool_source for existing channel
+			matchedIDs[existing.ID] = true
 			model.DB.Model(&existing).Updates(map[string]any{
 				"type":        chType,
 				"tag":         chTag,
 				"tool_source": toolSource,
 			})
+			res.Updated++
 			continue
 		}
 
@@ -198,9 +209,23 @@ func SyncCCSProviders() (int, error) {
 			log.Printf("[CCS-SYNC] create channel failed: %v", err)
 			continue
 		}
-		added++
+		matchedIDs[ch.ID] = true
+		res.Added++
 		log.Printf("[CCS-SYNC] added channel: %s -> %s", ch.Name, ch.BaseURL)
 	}
 
-	return added, nil
+	// Cleanup: remove channels with a tool_source (from CCS) that no longer exist in CCS
+	if cleanup {
+		var locals []model.Channel
+		model.DB.Where("tool_source != '' AND tool_source IS NOT NULL").Find(&locals)
+		for _, ch := range locals {
+			if !matchedIDs[ch.ID] {
+				DeleteChannel(ch.ID)
+				res.Removed++
+				log.Printf("[CCS-SYNC] removed stale channel: %s (id=%d)", ch.Name, ch.ID)
+			}
+		}
+	}
+
+	return res, nil
 }
