@@ -138,15 +138,6 @@ func SyncCCSProviders() (int, error) {
 
 	added := 0
 	for _, p := range providers {
-		// Check if channel with same base_url and api_key already exists
-		var count int64
-		model.DB.Model(&model.Channel{}).
-			Where("base_url = ? AND api_key = ?", p.BaseURL, p.APIKey).
-			Count(&count)
-		if count > 0 {
-			continue
-		}
-
 		// tool_source: determined by AppType (which CLI tool)
 		toolSource := ""
 		switch {
@@ -180,15 +171,28 @@ func SyncCCSProviders() (int, error) {
 			chTag = "openai"
 		}
 
+		// Check if channel with same base_url and api_key already exists
+		var existing model.Channel
+		result := model.DB.Where("base_url = ? AND api_key = ?", p.BaseURL, p.APIKey).First(&existing)
+		if result.RowsAffected > 0 {
+			// Update type and tool_source for existing channel
+			model.DB.Model(&existing).Updates(map[string]any{
+				"type":        chType,
+				"tag":         chTag,
+				"tool_source": toolSource,
+			})
+			continue
+		}
+
 		ch := model.Channel{
 			Name:       fmt.Sprintf("%s (%s)", p.Name, p.AppType),
 			Type:       chType,
 			Tag:        chTag,
 			ToolSource: toolSource,
 			BaseURL:    p.BaseURL,
-			APIKey:  p.APIKey,
-			Status:  model.ChannelStatusEnabled,
-			AutoBan: true,
+			APIKey:     p.APIKey,
+			Status:     model.ChannelStatusEnabled,
+			AutoBan:    true,
 		}
 		if err := model.DB.Create(&ch).Error; err != nil {
 			log.Printf("[CCS-SYNC] create channel failed: %v", err)
