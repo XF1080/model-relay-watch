@@ -764,76 +764,142 @@ function MonitorPanel() {
         </div>
       </div>
 
-      {/* Progress bar */}
-      {(testing || (showTasks && taskList.length > 0)) && (
-        <div style={{ marginBottom: 16, background: '#fff', borderRadius: 10, border: '1px solid #ececf1', overflow: 'hidden' }}>
-          <div
-            style={{ padding: '12px 18px', cursor: 'pointer', userSelect: 'none' }}
-            onClick={() => setShowTasks(!showTasks)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#6366f1' }}>
-                {testing ? `测试进度 ${progress.completed}/${progress.total}` : `测试完成 ${taskList.filter(t => t.status === 'success').length}/${taskList.length} 成功`}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, color: '#9ca3af', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {testing ? progress.current : ''}
-                </span>
-                {!testing && <button onClick={e => { e.stopPropagation(); setShowTasks(false); setTaskList([]); }} style={{
-                  fontSize: 10, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
-                }}>x 关闭</button>}
-                <span style={{ fontSize: 10, color: '#9ca3af', transition: 'transform .2s', transform: showTasks ? 'rotate(90deg)' : 'none' }}>▶</span>
-              </div>
-            </div>
-            {progress.total > 0 && (
-              <div style={{ height: 4, background: '#f3f4f6', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', borderRadius: 2, transition: 'width .3s',
-                  width: `${Math.round((progress.completed / Math.max(progress.total, 1)) * 100)}%`,
-                  background: testing ? 'linear-gradient(90deg, #6366f1, #8b5cf6)' : '#22c55e',
-                }} />
-              </div>
-            )}
-          </div>
-
-          {/* Task list */}
-          {showTasks && taskList.length > 0 && (
-            <div style={{ maxHeight: 320, overflowY: 'auto', borderTop: '1px solid #f0f0f0' }}>
-              {taskList.map((t, i) => (
-                <div key={i} style={{
-                  display: 'grid', gridTemplateColumns: '18px 1fr 1fr 70px 60px',
-                  padding: '6px 18px', fontSize: 12, alignItems: 'center', gap: 8,
-                  borderBottom: '1px solid #f9fafb',
-                  background: t.status === 'running' ? 'rgba(99,102,241,0.03)' : 'transparent',
-                }}>
-                  {/* Status icon */}
-                  <span style={{ fontSize: 11, textAlign: 'center' }}>
-                    {t.status === 'pending' && <span style={{ color: '#d1d5db' }}>○</span>}
-                    {t.status === 'running' && <span style={{ color: '#6366f1', animation: 'spin 1s linear infinite', display: 'inline-block' }}>◌</span>}
-                    {t.status === 'success' && <span style={{ color: '#22c55e' }}>✓</span>}
-                    {t.status === 'failed' && <span style={{ color: '#ef4444' }}>✕</span>}
-                  </span>
-                  {/* Model */}
-                  <span style={{ fontWeight: 600, color: '#16192c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {t.model_name}
-                  </span>
-                  {/* Channel */}
-                  <span style={{ color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {t.channel_name}
-                  </span>
-                  {/* Latency */}
-                  <span style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11, color: t.status === 'success' ? '#22c55e' : t.status === 'failed' ? '#ef4444' : '#bbb' }}>
-                    {t.latency_ms > 0 ? fmtMs(t.latency_ms) : t.status === 'running' ? '...' : '-'}
-                  </span>
-                  {/* Error */}
-                  <span style={{ fontSize: 10, color: '#ef4444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.error}>
-                    {t.error || ''}
-                  </span>
-                </div>
-              ))}
+      {/* Floating test task trigger + drawer */}
+      {taskList.length > 0 && (
+        <>
+          {/* Floating badge button */}
+          {!showTasks && (
+            <div onClick={() => setShowTasks(true)} style={{
+              position: 'fixed', right: 24, bottom: 24, zIndex: 900,
+              width: 52, height: 52, borderRadius: '50%', cursor: 'pointer',
+              background: testing ? '#6366f1' : '#22c55e', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 16px rgba(0,0,0,.18)', transition: 'transform .15s',
+              fontSize: 13, fontWeight: 800,
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+            >
+              {testing ? `${progress.completed}/${progress.total}` : '✓'}
             </div>
           )}
-        </div>
+
+          {/* Drawer */}
+          {showTasks && (
+            <div style={{
+              position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 950,
+              width: 420, background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,.1)',
+              display: 'flex', flexDirection: 'column',
+              animation: 'slideInRight .2s ease-out',
+            }}>
+              {/* Drawer header */}
+              <div style={{
+                padding: '16px 20px', borderBottom: '1px solid #f0f0f0',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
+              }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#16192c' }}>
+                    {testing ? '测试进行中' : '测试完成'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                    {testing
+                      ? `${progress.completed}/${progress.total} 已完成`
+                      : `${taskList.filter(t => t.status === 'success').length}/${taskList.length} 成功`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {!testing && (
+                    <button onClick={() => { setShowTasks(false); setTaskList([]); }} style={{
+                      height: 28, padding: '0 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer',
+                    }}>清除</button>
+                  )}
+                  <button onClick={() => setShowTasks(false)} style={{
+                    width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb',
+                    background: '#fff', color: '#6b7280', cursor: 'pointer', fontSize: 13,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>x</button>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              {progress.total > 0 && (
+                <div style={{ padding: '0 20px', paddingTop: 12, paddingBottom: 8, flexShrink: 0 }}>
+                  <div style={{ height: 4, background: '#f3f4f6', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 2, transition: 'width .3s',
+                      width: `${Math.round((progress.completed / Math.max(progress.total, 1)) * 100)}%`,
+                      background: testing ? 'linear-gradient(90deg, #6366f1, #8b5cf6)' : '#22c55e',
+                    }} />
+                  </div>
+                  {testing && progress.current && (
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {progress.current}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Task list */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {taskList.map((t, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 20px', fontSize: 12,
+                    borderBottom: '1px solid #f9fafb',
+                    background: t.status === 'running' ? 'rgba(99,102,241,0.04)' : 'transparent',
+                  }}>
+                    {/* Status icon */}
+                    <span style={{ width: 16, textAlign: 'center', flexShrink: 0, fontSize: 12 }}>
+                      {t.status === 'pending' && <span style={{ color: '#d1d5db' }}>○</span>}
+                      {t.status === 'running' && <span style={{ color: '#6366f1' }}>◌</span>}
+                      {t.status === 'success' && <span style={{ color: '#22c55e' }}>✓</span>}
+                      {t.status === 'failed' && <span style={{ color: '#ef4444' }}>✕</span>}
+                    </span>
+                    {/* Model + Channel */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: '#16192c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.model_name}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.channel_name}
+                      </div>
+                    </div>
+                    {/* Result */}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{
+                        fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
+                        color: t.status === 'success' ? '#22c55e' : t.status === 'failed' ? '#ef4444' : '#bbb',
+                      }}>
+                        {t.latency_ms > 0 ? fmtMs(t.latency_ms) : t.status === 'running' ? '...' : '-'}
+                      </div>
+                      {t.error && (
+                        <div style={{ fontSize: 9, color: '#ef4444', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.error}>
+                          {t.error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Drawer footer summary */}
+              {!testing && taskList.length > 0 && (
+                <div style={{
+                  padding: '10px 20px', borderTop: '1px solid #f0f0f0', flexShrink: 0,
+                  display: 'flex', gap: 16, fontSize: 11, color: '#6b7280',
+                }}>
+                  <span style={{ color: '#22c55e', fontWeight: 600 }}>
+                    ✓ {taskList.filter(t => t.status === 'success').length} 成功
+                  </span>
+                  <span style={{ color: '#ef4444', fontWeight: 600 }}>
+                    ✕ {taskList.filter(t => t.status === 'failed').length} 失败
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Stat Cards */}
