@@ -94,7 +94,7 @@ export default function Channels() {
   const [testingId, setTestingId] = useState<number>(0);
   const [openDropdownId, setOpenDropdownId] = useState<number>(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [groupMode, setGroupMode] = useState<GroupMode>('tag');
+  const [groupMode, setGroupMode] = useState<GroupMode>('tool');
 
   const load = () => {
     setLoading(true);
@@ -120,14 +120,14 @@ export default function Channels() {
         });
     } else {
       for (const ch of channels) {
-        const tag = ch.tag || 'other';
-        if (!map[tag]) map[tag] = [];
-        map[tag].push(ch);
+        const tool = tagToTool(ch.tag || 'other');
+        if (!map[tool]) map[tool] = [];
+        map[tool].push(ch);
       }
-      return TAG_ORDER
+      return TOOL_ORDER
         .filter(t => map[t] && map[t].length > 0)
         .map(t => {
-          const cfg = tagConfig[t] || tagConfig.other;
+          const cfg = toolGroupConfig[t] || toolGroupConfig.other;
           return { key: t, label: cfg.label, color: cfg.color, icon: cfg.icon, channels: map[t] };
         });
     }
@@ -206,7 +206,7 @@ export default function Channels() {
       {/* Group mode tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid #f0f0f0', width: 'fit-content' }}>
         {([
-          { key: 'tag' as GroupMode, label: '工具来源' },
+          { key: 'tool' as GroupMode, label: '工具来源' },
           { key: 'type' as GroupMode, label: '接口类型' },
         ]).map(t => (
           <button key={t.key} onClick={() => { setGroupMode(t.key); setCollapsed({}); }} style={{
