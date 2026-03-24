@@ -76,7 +76,8 @@ const toolGroupConfig: Record<string, { label: string; color: string; icon: stri
   other:       { label: '其他',        color: '#9ca3af', icon: '?' },
 };
 
-function tagToTool(tag: string): string {
+function tagToTool(tag: string, toolSource?: string): string {
+  if (toolSource) return toolSource;
   switch (tag) {
     case 'claude': return 'claude_code';
     case 'openai': case 'codex': case 'deepseek': return 'codex';
@@ -120,7 +121,7 @@ export default function Channels() {
         });
     } else {
       for (const ch of channels) {
-        const tool = tagToTool(ch.tag || 'other');
+        const tool = tagToTool(ch.tag || 'other', ch.tool_source);
         if (!map[tool]) map[tool] = [];
         map[tool].push(ch);
       }
@@ -293,7 +294,7 @@ export default function Channels() {
         width={520}
       >
         <Form onSubmit={handleSubmit}
-          initValues={editing || { type: 'openai', tag: '', base_url: 'http://127.0.0.1:8317', auto_ban: true, priority: 0 }}
+          initValues={editing || { type: 'openai', tag: '', tool_source: '', base_url: 'http://127.0.0.1:8317', auto_ban: true, priority: 0 }}
           labelPosition="top">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <Form.Input field="name" label="通道名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="如: Claude 官方" />
@@ -305,6 +306,12 @@ export default function Channels() {
             </Form.Select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+            <Form.Select field="tool_source" label="工具来源" style={{ width: '100%' }}>
+              <Form.Select.Option value="">自动推断</Form.Select.Option>
+              {TOOL_ORDER.filter(t => t !== 'other').map(t => (
+                <Form.Select.Option key={t} value={t}>{toolGroupConfig[t].label}</Form.Select.Option>
+              ))}
+            </Form.Select>
             <Form.Select field="type" label="协议类型" style={{ width: '100%' }}>
               <Form.Select.Option value="openai">OpenAI Chat Completions</Form.Select.Option>
               <Form.Select.Option value="responses">OpenAI Responses API</Form.Select.Option>
