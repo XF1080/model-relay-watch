@@ -58,7 +58,7 @@ function HealthBar({ pct }: { pct: number }) {
 }
 
 /* ─── Grouping modes ──── */
-type GroupMode = 'type' | 'tag';
+type GroupMode = 'type' | 'tool';
 
 const TYPE_ORDER = ['openai', 'responses', 'anthropic'] as const;
 const typeGroupConfig: Record<string, { label: string; color: string; icon: string }> = {
@@ -66,6 +66,24 @@ const typeGroupConfig: Record<string, { label: string; color: string; icon: stri
   responses: { label: 'Responses API',    color: '#6e56cf', icon: 'R' },
   anthropic: { label: 'Anthropic',        color: '#d97706', icon: 'A' },
 };
+
+// Map channel tag → CLI tool group
+const TOOL_ORDER = ['claude_code', 'codex', 'gemini_cli', 'other'] as const;
+const toolGroupConfig: Record<string, { label: string; color: string; icon: string }> = {
+  claude_code: { label: 'Claude Code', color: '#d97706', icon: 'C' },
+  codex:       { label: 'Codex',       color: '#6e56cf', icon: 'X' },
+  gemini_cli:  { label: 'Gemini CLI',  color: '#4285f4', icon: 'G' },
+  other:       { label: '其他',        color: '#9ca3af', icon: '?' },
+};
+
+function tagToTool(tag: string): string {
+  switch (tag) {
+    case 'claude': return 'claude_code';
+    case 'openai': case 'codex': case 'deepseek': return 'codex';
+    case 'gemini': return 'gemini_cli';
+    default: return 'other';
+  }
+}
 
 export default function Channels() {
   const [channels, setChannels] = useState<Channel[]>([]);
