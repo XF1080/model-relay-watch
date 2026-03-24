@@ -57,6 +57,16 @@ function HealthBar({ pct }: { pct: number }) {
   );
 }
 
+/* ─── Grouping modes ──── */
+type GroupMode = 'type' | 'tag';
+
+const TYPE_ORDER = ['openai', 'responses', 'anthropic'] as const;
+const typeGroupConfig: Record<string, { label: string; color: string; icon: string }> = {
+  openai:    { label: 'Chat Completions', color: '#10a37f', icon: 'O' },
+  responses: { label: 'Responses API',    color: '#6e56cf', icon: 'R' },
+  anthropic: { label: 'Anthropic',        color: '#d97706', icon: 'A' },
+};
+
 export default function Channels() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +76,7 @@ export default function Channels() {
   const [testingId, setTestingId] = useState<number>(0);
   const [openDropdownId, setOpenDropdownId] = useState<number>(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [groupMode, setGroupMode] = useState<GroupMode>('tag');
 
   const load = () => {
     setLoading(true);
@@ -74,19 +85,35 @@ export default function Channels() {
 
   useEffect(() => { load(); }, []);
 
-  /* Group channels by tag */
+  /* Group channels by mode */
   const grouped = useMemo(() => {
     const map: Record<string, Channel[]> = {};
-    for (const ch of channels) {
-      const tag = ch.tag || 'other';
-      if (!map[tag]) map[tag] = [];
-      map[tag].push(ch);
+    if (groupMode === 'type') {
+      for (const ch of channels) {
+        const key = ch.type || 'openai';
+        if (!map[key]) map[key] = [];
+        map[key].push(ch);
+      }
+      return TYPE_ORDER
+        .filter(t => map[t] && map[t].length > 0)
+        .map(t => {
+          const cfg = typeGroupConfig[t] || typeGroupConfig.openai;
+          return { key: t, label: cfg.label, color: cfg.color, icon: cfg.icon, channels: map[t] };
+        });
+    } else {
+      for (const ch of channels) {
+        const tag = ch.tag || 'other';
+        if (!map[tag]) map[tag] = [];
+        map[tag].push(ch);
+      }
+      return TAG_ORDER
+        .filter(t => map[t] && map[t].length > 0)
+        .map(t => {
+          const cfg = tagConfig[t] || tagConfig.other;
+          return { key: t, label: cfg.label, color: cfg.color, icon: cfg.icon, channels: map[t] };
+        });
     }
-    // Return in defined order, only tags that have channels
-    return TAG_ORDER
-      .filter(t => map[t] && map[t].length > 0)
-      .map(t => ({ tag: t, channels: map[t] }));
-  }, [channels]);
+  }, [channels, groupMode]);
 
   const toggleCollapse = (tag: string) =>
     setCollapsed(s => ({ ...s, [tag]: !s[tag] }));
@@ -143,7 +170,7 @@ export default function Channels() {
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto', fontFamily: "Inter,-apple-system,'Segoe UI',sans-serif" }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#16192c' }}>通道管理</h1>
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>共 <b style={{ color: '#6366f1' }}>{channels.length}</b> 个通道</div>
@@ -158,6 +185,23 @@ export default function Channels() {
         </Space>
       </div>
 
+      {/* Group mode tabs */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid #f0f0f0', width: 'fit-content' }}>
+        {([
+          { key: 'tag' as GroupMode, label: '工具来源' },
+          { key: 'type' as GroupMode, label: '接口类型' },
+        ]).map(t => (
+          <button key={t.key} onClick={() => { setGroupMode(t.key); setCollapsed({}); }} style={{
+            padding: '8px 20px', fontSize: 13, fontWeight: 600, borderRadius: 0,
+            border: 'none', cursor: 'pointer', transition: 'all .15s',
+            background: 'transparent',
+            color: groupMode === t.key ? '#6366f1' : '#6b7280',
+            borderBottom: groupMode === t.key ? '2px solid #6366f1' : '2px solid transparent',
+            marginBottom: -2,
+          }}>{t.label}</button>
+        ))}
+      </div>
+
       {/* Channel Cards - grouped by tag */}
       {loading && channels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>
@@ -165,16 +209,15 @@ export default function Channels() {
         <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>暂无通道，点击右上角添加</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {grouped.map(({ tag, channels: groupChannels }) => {
-            const cfg = tagConfig[tag] || tagConfig.other;
-            const isCollapsed = collapsed[tag];
+          {grouped.map(({ key, label, color, icon, channels: groupChannels }) => {
+            const isCollapsed = collapsed[key];
             const enabledCount = groupChannels.filter(c => c.status === StatusEnabled).length;
 
             return (
-              <div key={tag}>
+              <div key={key}>
                 {/* Group header */}
                 <div
-                  onClick={() => toggleCollapse(tag)}
+                  onClick={() => toggleCollapse(key)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, marginBottom: isCollapsed ? 0 : 10,
                     cursor: 'pointer', userSelect: 'none', padding: '4px 0',
@@ -183,9 +226,9 @@ export default function Channels() {
                   <div style={{
                     width: 28, height: 28, borderRadius: 8, display: 'flex',
                     alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800, color: '#fff', background: cfg.color,
-                  }}>{cfg.icon}</div>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{cfg.label}</span>
+                    fontSize: 13, fontWeight: 800, color: '#fff', background: color,
+                  }}>{icon}</div>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: '#16192c' }}>{label}</span>
                   <span style={{
                     fontSize: 11, fontWeight: 600, color: '#9ca3af', background: '#f3f4f6',
                     padding: '2px 8px', borderRadius: 8,
