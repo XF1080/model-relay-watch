@@ -22,9 +22,10 @@ type CCSProvider struct {
 	ProviderType   string `json:"provider_type"`
 	IsCurrent      bool   `json:"is_current"`
 	// Parsed fields
-	BaseURL string `json:"base_url"`
-	APIKey  string `json:"api_key"`
-	Model   string `json:"model"`
+	BaseURL  string `json:"base_url"`
+	APIKey   string `json:"api_key"`
+	Model    string `json:"model"`
+	AuthType string `json:"auth_type"` // "anthropic" or "openai" — detected from settings_config
 }
 
 func ReadCCSProviders() ([]CCSProvider, error) {
@@ -88,16 +89,18 @@ func ReadCCSProviders() ([]CCSProvider, error) {
 			}
 			if v, ok := env["ANTHROPIC_AUTH_TOKEN"].(string); ok {
 				p.APIKey = v
+				p.AuthType = "anthropic"
 			}
 			if v, ok := env["ANTHROPIC_MODEL"].(string); ok {
 				p.Model = v
 			}
 		}
 
-		// Codex providers: auth.OPENAI_API_KEY + parse config TOML for base_url
+		// OpenAI-compatible providers: auth.OPENAI_API_KEY + parse config TOML for base_url
 		if auth, ok := cfg["auth"].(map[string]any); ok {
 			if v, ok := auth["OPENAI_API_KEY"].(string); ok {
 				p.APIKey = v
+				p.AuthType = "openai"
 			}
 		}
 		if cfgStr, ok := cfg["config"].(string); ok && p.BaseURL == "" {
@@ -144,27 +147,37 @@ func SyncCCSProviders() (int, error) {
 			continue
 		}
 
-		// Determine channel type, tag, and tool_source
-		chType := model.ChannelTypeOpenAI
-		chTag := "other"
+		// tool_source: determined by AppType (which CLI tool)
 		toolSource := ""
 		switch {
 		case p.AppType == "claude":
-			chType = model.ChannelTypeAnthropic
-			chTag = "claude"
 			toolSource = "claude_code"
 		case strings.Contains(strings.ToLower(p.AppType), "codex"):
-			chTag = "codex"
 			toolSource = "codex"
-		case strings.Contains(strings.ToLower(p.AppType), "gemini") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "gemini") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "google"):
-			chTag = "gemini"
+		case strings.Contains(strings.ToLower(p.AppType), "gemini"):
 			toolSource = "gemini_cli"
-		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "deepseek"):
+		}
+
+		// chType: determined by actual auth/API format, not AppType
+		chType := model.ChannelTypeOpenAI
+		if p.AuthType == "anthropic" {
+			chType = model.ChannelTypeAnthropic
+		}
+
+		// tag: determined by provider name/URL content
+		chTag := "other"
+		nameLower := strings.ToLower(p.Name + p.BaseURL)
+		switch {
+		case strings.Contains(nameLower, "claude") || strings.Contains(nameLower, "anthropic"):
+			chTag = "claude"
+		case strings.Contains(nameLower, "gemini") || strings.Contains(nameLower, "google"):
+			chTag = "gemini"
+		case strings.Contains(nameLower, "deepseek"):
 			chTag = "deepseek"
-			toolSource = "codex"
-		case strings.Contains(strings.ToLower(p.Name+p.BaseURL), "openai") || strings.Contains(strings.ToLower(p.Name+p.BaseURL), "chatgpt"):
+		case strings.Contains(nameLower, "codex"):
+			chTag = "codex"
+		case strings.Contains(nameLower, "openai") || strings.Contains(nameLower, "chatgpt"):
 			chTag = "openai"
-			toolSource = "codex"
 		}
 
 		ch := model.Channel{

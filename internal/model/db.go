@@ -67,13 +67,28 @@ func SeedOfficialPricing(items []ModelPricing) {
 // backfillToolSource sets tool_source for existing channels that were synced
 // from CCS before the tool_source field was added.
 // Channel names from CCS have the format "Name (AppType)".
+// Also fixes channel type based on API key format.
 func backfillToolSource() {
 	var channels []Channel
-	DB.Where("tool_source = '' OR tool_source IS NULL").Find(&channels)
+	DB.Find(&channels)
 	for _, ch := range channels {
-		ts := inferToolSource(ch.Name)
-		if ts != "" {
-			DB.Model(&Channel{}).Where("id = ?", ch.ID).Update("tool_source", ts)
+		updates := map[string]any{}
+
+		// Backfill tool_source if empty
+		if ch.ToolSource == "" {
+			if ts := inferToolSource(ch.Name); ts != "" {
+				updates["tool_source"] = ts
+			}
+		}
+
+		// Fix channel type based on API key prefix
+		correctType := inferChannelType(ch.APIKey)
+		if correctType != "" && correctType != ch.Type {
+			updates["type"] = correctType
+		}
+
+		if len(updates) > 0 {
+			DB.Model(&Channel{}).Where("id = ?", ch.ID).Updates(updates)
 		}
 	}
 }
@@ -91,6 +106,17 @@ func inferToolSource(name string) string {
 		case strings.Contains(appType, "gemini"):
 			return "gemini_cli"
 		}
+	}
+	return ""
+}
+
+// inferChannelType guesses the API protocol from the API key format.
+func inferChannelType(apiKey string) string {
+	if strings.HasPrefix(apiKey, "sk-ant-") {
+		return ChannelTypeAnthropic
+	}
+	if strings.HasPrefix(apiKey, "sk-") || strings.HasPrefix(apiKey, "key-") {
+		return ChannelTypeOpenAI
 	}
 	return ""
 }
