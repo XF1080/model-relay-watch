@@ -14,14 +14,21 @@ const (
 	ChannelTypeAnthropic  = "anthropic"  // Anthropic Messages API (/v1/messages)
 )
 
+const (
+	ChannelSourceManual = "manual"
+	ChannelSourceCCS    = "ccs"
+)
+
 type Channel struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Name      string    `gorm:"size:128;not null;index" json:"name"`
 	Type      string    `gorm:"size:32;default:openai" json:"type"` // openai, anthropic
-	Tag        string    `gorm:"size:32;default:other;index" json:"tag"`    // claude, openai, gemini, deepseek, codex, other
-	ToolSource string    `gorm:"size:32;default:''" json:"tool_source"`     // claude_code, codex, gemini_cli, or empty for auto
+	Source    string    `gorm:"size:16;default:manual;index" json:"source"` // manual, ccs
+	Tag       string    `gorm:"size:32;default:other;index" json:"tag"`     // claude, openai, gemini, deepseek, codex, other
+	ToolSource string   `gorm:"size:32;default:''" json:"tool_source"`      // claude_code, codex, gemini_cli, or empty for auto
 	BaseURL   string    `gorm:"size:512;not null" json:"base_url"`
 	APIKey    string    `gorm:"size:512;not null" json:"-"`
+	ProxyURL  string    `gorm:"size:512;default:''" json:"proxy_url"`
 	Status    int       `gorm:"default:1;index" json:"status"`
 	AutoBan   bool      `gorm:"default:true" json:"auto_ban"`
 	TestModel string    `gorm:"size:128" json:"test_model"`

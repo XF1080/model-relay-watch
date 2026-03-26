@@ -150,7 +150,7 @@ func DownloadSnapshot() error {
 	}
 
 	// Replace DB file
-	if err := os.Rename(tmpPath, dbPath); err != nil {
+	if err := replaceFile(tmpPath, dbPath); err != nil {
 		model.InitDB(dbPath)
 		return fmt.Errorf("替换数据库失败: %w", err)
 	}
@@ -252,4 +252,11 @@ func copyFile(src, dst string) error {
 		err = closeErr
 	}
 	return err
+}
+
+func replaceFile(src, dst string) error {
+	if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.Rename(src, dst)
 }

@@ -70,25 +70,28 @@ func ListHistory(c *gin.Context) {
 
 func GetHistoryStats(c *gin.Context) {
 	type ModelStat struct {
-		ModelName   string  `json:"model_name"`
-		ChannelID   uint    `json:"channel_id"`
-		TotalTests  int     `json:"total_tests"`
-		SuccessRate float64 `json:"success_rate"`
-		AvgLatency  float64 `json:"avg_latency_ms"`
+		ModelName   string  `gorm:"column:model_name" json:"model_name"`
+		TotalTests  int     `gorm:"column:total_tests" json:"total_tests"`
+		SuccessRate float64 `gorm:"column:success_rate" json:"success_rate"`
+		AvgLatency  float64 `gorm:"column:avg_latency_ms" json:"avg_latency_ms"`
 	}
 
 	var stats []ModelStat
 	model.DB.Model(&model.TestResult{}).
-		Select("model_name, channel_id, COUNT(*) as total_tests, AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)*100 as success_rate, AVG(CASE WHEN success THEN response_ms ELSE NULL END) as avg_latency").
-		Group("channel_id, model_name").
-		Order("success_rate asc").
+		Select("model_name, COUNT(*) AS total_tests, SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS success_rate, AVG(CASE WHEN success = 1 THEN response_ms ELSE NULL END) AS avg_latency_ms").
+		Group("model_name").
+		Order("success_rate asc, total_tests desc").
 		Find(&stats)
 
 	c.JSON(http.StatusOK, gin.H{"data": stats})
 }
 
 func ClearHistory(c *gin.Context) {
-	days, _ := strconv.Atoi(c.DefaultQuery("days", "7"))
+	days, err := strconv.Atoi(c.DefaultQuery("days", "7"))
+	if err != nil || days < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "days must be a positive integer"})
+		return
+	}
 	cutoff := time.Now().AddDate(0, 0, -days)
 	result := model.DB.Where("tested_at < ?", cutoff).Delete(&model.TestResult{})
 	c.JSON(http.StatusOK, gin.H{

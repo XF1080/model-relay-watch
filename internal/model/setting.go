@@ -13,6 +13,7 @@ var DefaultSettings = map[string]string{
 	"auto_enable_enabled":                 "true",
 	"test_request_timeout_seconds":        "30",
 	"test_max_tokens":                     "16",
+	"test_proxy_url":                      "",
 	"history_retention_days":              "7",
 	"disable_keywords":                    "insufficient_quota,authentication_error,invalid_api_key,billing_not_active,permission_error,account_deactivated",
 	"webdav_url":                          "",
@@ -24,4 +25,7 @@ var DefaultSettings = map[string]string{
 	"webdav_last_sync_time":               "",
 	"webdav_last_sync_type":               "",
 	"ccs_db_path":                         "",
+	"usage_claude_path":                   "",
+	"usage_codex_path":                    "",
+	"usage_gemini_path":                   "",
 }

@@ -19,3 +19,13 @@ func GetTokenStats(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, data)
 }
+
+// GET /api/v1/stats/tokens/sources/detect
+func DetectTokenStatsSources(c *gin.Context) {
+	data, err := service.DetectTokenStatsSources()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, data)
+}

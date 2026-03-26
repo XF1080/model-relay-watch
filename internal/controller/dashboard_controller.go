@@ -255,17 +255,19 @@ func GetHeatmap(c *gin.Context) {
 		Windows     []WindowData `json:"windows"`
 	}
 
-	modelResults := make(map[string][]model.TestResult)
-	modelEntryIDs := make(map[string]uint)
+	modelResults := make(map[uint][]model.TestResult)
 	for _, r := range results {
-		modelResults[r.ModelName] = append(modelResults[r.ModelName], r)
-		modelEntryIDs[r.ModelName] = r.ModelEntryID
+		modelResults[r.ModelEntryID] = append(modelResults[r.ModelEntryID], r)
 	}
 
 	var heatmaps []ModelHeatmap
-	for modelName, rs := range modelResults {
-		hm := ModelHeatmap{ModelName: modelName, ModelID: modelEntryIDs[modelName], TotalTests: len(rs)}
-		if entry, ok := entryMap[hm.ModelID]; ok && entry.Channel != nil {
+	for entryID, rs := range modelResults {
+		entry, ok := entryMap[entryID]
+		if !ok {
+			continue
+		}
+		hm := ModelHeatmap{ModelName: entry.ModelName, ModelID: entryID, TotalTests: len(rs)}
+		if entry.Channel != nil {
 			hm.ChannelName = entry.Channel.Name
 		}
 		successCount := 0

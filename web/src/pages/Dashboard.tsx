@@ -89,7 +89,7 @@ const S = {
     background: 'linear-gradient(90deg, #6366f1, #8b5cf6, #06b6d4)',
     borderRadius: '16px 16px 0 0',
   } as React.CSSProperties,
-  heroTitle: { fontSize: 15, fontWeight: 700, marginBottom: 14, color: '#16192c' } as React.CSSProperties,
+
   chipWrap: { display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' as const } as React.CSSProperties,
   chip: {
     padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -305,8 +305,8 @@ type SortDir = 'asc' | 'desc';
 const SORT_OPTIONS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
   { key: 'score', label: '综合评分', defaultDir: 'desc' },
   { key: 'latency', label: '延迟', defaultDir: 'asc' },
-  { key: 'tps', label: '吞吐 (TPS)', defaultDir: 'desc' },
-  { key: 'ttfb', label: 'TTFB', defaultDir: 'asc' },
+  { key: 'tps', label: '吞吐量', defaultDir: 'desc' },
+  { key: 'ttfb', label: '首字节时间', defaultDir: 'asc' },
   { key: 'success_rate', label: '成功率', defaultDir: 'desc' },
   { key: 'throughput', label: '吞吐评分', defaultDir: 'desc' },
 ];
@@ -443,8 +443,8 @@ function ModelGroupCard({ group, sortKey, sortDir, onSort, selected, onCheck, te
             <SortableHeader label="通道" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="状态" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="延迟" colKey="latency" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <SortableHeader label="TTFB" colKey="ttfb" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <SortableHeader label="TPS" colKey="tps" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableHeader label="首字节时间" colKey="ttfb" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableHeader label="吞吐量" colKey="tps" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="成功率" colKey="success_rate" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="性能" colKey={null} sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableHeader label="评分" colKey="score" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
@@ -608,6 +608,8 @@ export default function Dashboard() {
 function MonitorPanel() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [models, setModels] = useState<ModelStat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [testing, setTesting] = useState(false);
   const [progress, setProgress] = useState({ total: 0, completed: 0, current: '' });
   const [taskList, setTaskList] = useState<Array<{ index: number; model_name: string; channel_name: string; status: string; latency_ms: number; error: string }>>([]);
@@ -635,28 +637,67 @@ function MonitorPanel() {
     }
   };
 
-  const load = () => {
-    getDashboard().then(setData);
-    getModelStats().then(setModels);
-    getTestStatus().then(s => {
+  const load = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError('');
+    }
+    try {
+      const [dashboard, modelStats, testStatus] = await Promise.all([
+        getDashboard(),
+        getModelStats(),
+        getTestStatus(),
+      ]);
+      setData(dashboard);
+      setModels(modelStats);
+      setTesting(testStatus.running);
+      setProgress({ total: testStatus.total, completed: testStatus.completed, current: testStatus.current });
+      if (testStatus.tasks?.length) {
+        setTaskList(testStatus.tasks);
+        setShowTasks(true);
+      }
+    } catch (e: any) {
+      if (!silent) {
+        setLoadError(e.response?.data?.error || '加载监控数据失败');
+      }
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const syncTestStatus = async () => {
+    try {
+      const s = await getTestStatus();
       setTesting(s.running);
       setProgress({ total: s.total, completed: s.completed, current: s.current });
-      if (s.tasks?.length) { setTaskList(s.tasks); setShowTasks(true); }
-    });
+      if (s.tasks?.length) {
+        setTaskList(s.tasks);
+        setShowTasks(true);
+      }
+    } catch (e: any) {
+      Toast.error(e.response?.data?.error || '获取测试状态失败');
+    }
   };
 
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
     if (!testing) return;
-    const timer = setInterval(() => {
-      getTestStatus().then(s => {
+    const timer = setInterval(async () => {
+      try {
+        const s = await getTestStatus();
         setTesting(s.running);
         setProgress({ total: s.total, completed: s.completed, current: s.current });
         if (s.tasks?.length) setTaskList(s.tasks);
-        if (!s.running) { load(); clearInterval(timer); }
-        else { getModelStats().then(setModels); }
-      });
+        if (!s.running) {
+          await load(true);
+          clearInterval(timer);
+        }
+      } catch {
+        clearInterval(timer);
+      }
     }, 1500);
     return () => clearInterval(timer);
   }, [testing]);
@@ -705,19 +746,21 @@ function MonitorPanel() {
 
   // Scoped test: selected > filtered > all
   const handleTestAll = async () => {
-    setTesting(true);
     setShowTasks(true);
     try {
       if (selected.size > 0) {
         await testBatch(Array.from(selected));
+        syncTestStatus();
         Toast.success(`已启动 ${selected.size} 个模型的测试`);
         setSelected(new Set());
       } else if (channelFilter || modelFilter) {
         const visibleModels = groups.flatMap(g => g.channels);
         await testBatch(visibleModels.map(m => m.model_id));
+        syncTestStatus();
         Toast.success(`已启动 ${visibleModels.length} 个模型的测试`);
       } else {
-        testAll();
+        await testAll();
+        syncTestStatus();
         Toast.success('已开始全量测试');
       }
     } catch (e: any) {
@@ -726,10 +769,10 @@ function MonitorPanel() {
   };
 
   const handleTestGroup = async (ids: number[]) => {
-    setTesting(true);
     setShowTasks(true);
     try {
       await testBatch(ids);
+      syncTestStatus();
       Toast.success(`已启动 ${ids.length} 个通道的测试`);
     } catch (e: any) {
       Toast.error(e.response?.data?.error || '测试失败');
@@ -748,6 +791,15 @@ function MonitorPanel() {
 
   return (
     <div style={S.page}>
+      {loadError && (
+        <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: '#b91c1c', fontSize: 13, fontWeight: 600 }}>
+          {loadError}
+        </div>
+      )}
+      {loading && !data ? (
+        <div style={{ textAlign: 'center', color: '#9ca3af', padding: '72px 20px' }}>加载中...</div>
+      ) : (
+        <>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
@@ -755,7 +807,7 @@ function MonitorPanel() {
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>快速找到每个模型最快的中转通道</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={load}
+          <button onClick={() => load()}
             style={{ height: 36, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #ececf1', color: '#5a6078', transition: 'all 0.15s' }}>↻ 刷新</button>
           <button onClick={handleTestAll} disabled={testing}
             style={{ height: 36, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: testing ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, background: '#6366f1', border: 'none', color: '#fff', boxShadow: '0 3px 12px rgba(99,102,241,0.25)', transition: 'all 0.15s', opacity: testing ? 0.7 : 1 }}>
@@ -935,7 +987,6 @@ function MonitorPanel() {
       {/* Filter & Sort Bar */}
       <div style={S.hero}>
         <div style={S.heroGradient} />
-        <div style={S.heroTitle}>🔍 筛选模型，对比各通道表现</div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* Channel filter */}
@@ -1028,6 +1079,8 @@ function MonitorPanel() {
         </div>
       ) : (
         groups.map(g => <ModelGroupCard key={g.model} group={g} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} selected={selected} onCheck={toggleCheck} testing={testing} onTestGroup={handleTestGroup} />)
+      )}
+        </>
       )}
     </div>
   );

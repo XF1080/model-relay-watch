@@ -16,6 +16,12 @@ type openAIModelList struct {
 	} `json:"data"`
 }
 
+type anthropicModelList struct {
+	Data []struct {
+		ID string `json:"id"`
+	} `json:"data"`
+}
+
 func GetModelsByChannel(channelID uint) ([]model.ModelEntry, error) {
 	var models []model.ModelEntry
 	if err := model.DB.Where("channel_id = ?", channelID).Order("model_name asc").Find(&models).Error; err != nil {
@@ -58,14 +64,20 @@ func UpdateModelStatus(id uint, status int) error {
 }
 
 func DiscoverModels(channel *model.Channel) ([]model.ModelEntry, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+	client, err := buildHTTPClient(15*time.Second, channel)
+	if err != nil {
+		return nil, err
+	}
 
-	// Normalize: strip trailing / and /v1 to avoid /v1/v1/models
 	base := strings.TrimRight(channel.BaseURL, "/")
 	base = strings.TrimSuffix(base, "/v1")
 	base = strings.TrimSuffix(base, "/v1beta")
 	base = strings.TrimRight(base, "/")
+
 	modelsURL := base + "/v1/models"
+	if channel.Type == model.ChannelTypeAnthropic {
+		modelsURL = base + "/v1/models"
+	}
 	req, err := http.NewRequest("GET", modelsURL, nil)
 	if err != nil {
 		return nil, err
@@ -90,9 +102,9 @@ func DiscoverModels(channel *model.Channel) ([]model.ModelEntry, error) {
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
-	var result openAIModelList
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %v", err)
+	modelIDs, err := parseDiscoveredModelIDs(resp.Body, channel.Type)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get existing models for this channel
@@ -104,14 +116,14 @@ func DiscoverModels(channel *model.Channel) ([]model.ModelEntry, error) {
 	}
 
 	var newModels []model.ModelEntry
-	for _, item := range result.Data {
-		if existing[item.ID] {
+	for _, modelID := range modelIDs {
+		if existing[modelID] {
 			continue
 		}
 		entry := model.ModelEntry{
 			ChannelID:    channel.ID,
-			ModelName:    item.ID,
-			EndpointType: inferEndpointType(item.ID),
+			ModelName:    modelID,
+			EndpointType: inferEndpointType(modelID),
 			Status:       model.ChannelStatusEnabled,
 		}
 		if err := model.DB.Create(&entry).Error; err != nil {
@@ -120,6 +132,35 @@ func DiscoverModels(channel *model.Channel) ([]model.ModelEntry, error) {
 		newModels = append(newModels, entry)
 	}
 	return newModels, nil
+}
+
+func parseDiscoveredModelIDs(body io.Reader, channelType string) ([]string, error) {
+	switch channelType {
+	case model.ChannelTypeAnthropic:
+		var result anthropicModelList
+		if err := json.NewDecoder(body).Decode(&result); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %v", err)
+		}
+		ids := make([]string, 0, len(result.Data))
+		for _, item := range result.Data {
+			if item.ID != "" {
+				ids = append(ids, item.ID)
+			}
+		}
+		return ids, nil
+	default:
+		var result openAIModelList
+		if err := json.NewDecoder(body).Decode(&result); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %v", err)
+		}
+		ids := make([]string, 0, len(result.Data))
+		for _, item := range result.Data {
+			if item.ID != "" {
+				ids = append(ids, item.ID)
+			}
+		}
+		return ids, nil
+	}
 }
 
 func inferEndpointType(name string) string {

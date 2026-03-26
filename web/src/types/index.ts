@@ -2,9 +2,11 @@ export interface Channel {
   id: number;
   name: string;
   type: string; // openai, anthropic
+  source: string; // manual, ccs
   tag: string;  // claude, openai, gemini, deepseek, codex, other
   tool_source: string; // claude_code, codex, gemini_cli, or empty for auto
   base_url: string;
+  proxy_url: string;
   api_key_hint?: string;
   status: number;
   auto_ban: boolean;

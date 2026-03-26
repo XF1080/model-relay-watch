@@ -34,7 +34,7 @@ export const getTestStatus = () => api.get<{
 // History
 export const listHistory = (params?: Record<string, string | number>) =>
   api.get<{ data: TestResult[]; total: number; page: number; page_size: number }>('/history', { params }).then(r => r.data);
-export const getHistoryStats = () => api.get<{ data: Array<{ model_name: string; channel_id: number; total_tests: number; success_rate: number; avg_latency_ms: number }> }>('/history/stats').then(r => r.data.data);
+export const getHistoryStats = () => api.get<{ data: Array<{ model_name: string; total_tests: number; success_rate: number; avg_latency_ms: number }> }>('/history/stats').then(r => r.data.data);
 export const clearHistory = (days: number) => api.delete('/history', { params: { days } });
 
 // Settings
@@ -67,6 +67,8 @@ export const syncCCSProviders = (cleanup?: boolean) =>
 // Token Stats (from CCS proxy_request_logs)
 export const getTokenStats = (range: string, start?: string, end?: string) =>
   api.get<any>('/stats/tokens', { params: { range, start, end } }).then(r => r.data);
+export const detectTokenStatsSources = () =>
+  api.get<{ claude_found: boolean; claude_path?: string; codex_found: boolean; codex_path?: string; gemini_found: boolean; gemini_path?: string }>('/stats/tokens/sources/detect').then(r => r.data);
 
 // Pricing
 export const getPricing = () =>

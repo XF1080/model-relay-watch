@@ -68,6 +68,7 @@ func CreateChannel(c *gin.Context) {
 		Tag       string `json:"tag"`
 		BaseURL   string `json:"base_url"`
 		APIKey    string `json:"api_key"`
+		ProxyURL  string `json:"proxy_url"`
 		AutoBan   *bool  `json:"auto_ban"`
 		TestModel string `json:"test_model"`
 		Priority  int    `json:"priority"`
@@ -84,9 +85,11 @@ func CreateChannel(c *gin.Context) {
 	ch := model.Channel{
 		Name:      input.Name,
 		Type:      input.Type,
+		Source:    model.ChannelSourceManual,
 		Tag:       input.Tag,
 		BaseURL:   normalizeBaseURL(input.BaseURL),
 		APIKey:    input.APIKey,
+		ProxyURL:  strings.TrimSpace(input.ProxyURL),
 		TestModel: input.TestModel,
 		Priority:  input.Priority,
 		Remark:    input.Remark,
@@ -121,6 +124,7 @@ func UpdateChannel(c *gin.Context) {
 		Tag       *string `json:"tag"`
 		BaseURL   *string `json:"base_url"`
 		APIKey    *string `json:"api_key"`
+		ProxyURL  *string `json:"proxy_url"`
 		AutoBan   *bool   `json:"auto_ban"`
 		TestModel *string `json:"test_model"`
 		Priority  *int    `json:"priority"`
@@ -145,6 +149,9 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if input.APIKey != nil && *input.APIKey != "" {
 		existing.APIKey = *input.APIKey
+	}
+	if input.ProxyURL != nil {
+		existing.ProxyURL = strings.TrimSpace(*input.ProxyURL)
 	}
 	if input.AutoBan != nil {
 		existing.AutoBan = *input.AutoBan

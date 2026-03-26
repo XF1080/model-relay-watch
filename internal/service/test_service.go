@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tidwall/gjson"
+	"gorm.io/gorm"
 )
 
 var (
@@ -24,6 +25,12 @@ var (
 	batchTasks []TaskStatus
 	progressMu sync.RWMutex
 )
+
+func setBatchRunning(running bool) {
+	progressMu.Lock()
+	batchRunning = running
+	progressMu.Unlock()
+}
 
 // TaskStatus tracks the state of a single test task
 type TaskStatus struct {
@@ -36,6 +43,8 @@ type TaskStatus struct {
 }
 
 func IsBatchRunning() bool {
+	progressMu.RLock()
+	defer progressMu.RUnlock()
 	return batchRunning
 }
 
@@ -102,6 +111,26 @@ func clearTaskList() {
 	progressMu.Unlock()
 }
 
+func StartChannelTest(channelID uint) error {
+	return startBatch(channelID, nil)
+}
+
+func StartAllModelsTest() error {
+	return startBatch(0, nil)
+}
+
+func StartSelectedModelsTest(ids []uint) error {
+	return startBatch(0, ids)
+}
+
+func TestAllModels(channelID uint) error {
+	return runAllModels(channelID)
+}
+
+func TestSelectedModels(ids []uint) error {
+	return runSelectedModels(ids)
+}
+
 type netTimings struct {
 	dnsStart, dnsDone     time.Time
 	connectStart, connectDone time.Time
@@ -128,7 +157,14 @@ func TestSingleModel(entry *model.ModelEntry, channel *model.Channel) *model.Tes
 
 	url, payload := buildTestRequest(channel.Type, channel.BaseURL, entry.ModelName, entry.EndpointType, maxTokens)
 
-	client := &http.Client{Timeout: timeout}
+	client, err := buildHTTPClient(timeout, channel)
+	if err != nil {
+		result.Success = false
+		result.ErrorMessage = err.Error()
+		result.ErrorType = "proxy_config_error"
+		saveTestResult(result, entry)
+		return result
+	}
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
@@ -193,7 +229,7 @@ func TestSingleModel(entry *model.ModelEntry, channel *model.Channel) *model.Tes
 	respBody, _ := io.ReadAll(resp.Body)
 	respStr := string(respBody)
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		result.Success = false
 		result.ErrorMessage = extractErrorMessage(respStr)
 		result.ErrorType = extractErrorField(respStr, "error.type")
@@ -202,7 +238,7 @@ func TestSingleModel(entry *model.ModelEntry, channel *model.Channel) *model.Tes
 		return result
 	}
 
-	if gjson.Get(respStr, "error").Exists() {
+	if hasAPIError(respStr) {
 		result.Success = false
 		result.ErrorMessage = extractErrorMessage(respStr)
 		result.ErrorType = extractErrorField(respStr, "error.type")
@@ -294,45 +330,83 @@ func extractErrorMessage(body string) string {
 	if msg != "" {
 		return msg
 	}
+	if text := extractSuccessPreview(body); text != "" {
+		return text
+	}
 	if len(body) > 500 {
 		return body[:500]
 	}
 	return body
 }
 
+func extractSuccessPreview(body string) string {
+	if text := gjson.Get(body, "output_text").String(); text != "" {
+		return text
+	}
+	if text := gjson.Get(body, "choices.0.message.content").String(); text != "" {
+		return text
+	}
+	if text := gjson.Get(body, "content.0.text").String(); text != "" {
+		return text
+	}
+	if text := gjson.Get(body, "output.0.content.0.text").String(); text != "" {
+		return text
+	}
+	return ""
+}
+
 func extractErrorField(body, path string) string {
 	return gjson.Get(body, path).String()
+}
+
+func hasAPIError(body string) bool {
+	errorValue := gjson.Get(body, "error")
+	if !errorValue.Exists() {
+		return false
+	}
+	if errorValue.Type == gjson.JSON {
+		return true
+	}
+	return strings.TrimSpace(errorValue.String()) != ""
 }
 
 func saveTestResult(result *model.TestResult, entry *model.ModelEntry) {
 	model.DB.Create(result)
 
-	now := time.Now()
 	updates := map[string]interface{}{
-		"last_test_time":   now,
+		"last_test_time":   time.Now(),
 		"last_response_ms": result.ResponseMs,
-		"test_count":       entry.TestCount + 1,
+		"test_count":       gorm.Expr("test_count + ?", 1),
 	}
 	if result.Success {
 		updates["last_error"] = ""
 	} else {
 		updates["last_error"] = result.ErrorMessage
-		updates["fail_count"] = entry.FailCount + 1
+		updates["fail_count"] = gorm.Expr("fail_count + ?", 1)
 	}
 	model.DB.Model(&model.ModelEntry{}).Where("id = ?", entry.ID).Updates(updates)
 }
 
-func TestAllModels(channelID uint) error {
+func startBatch(channelID uint, ids []uint) error {
 	if !batchMutex.TryLock() {
 		return fmt.Errorf("batch test already in progress")
 	}
-	batchRunning = true
-	defer func() {
-		clearTaskList()
-		batchRunning = false
-		batchMutex.Unlock()
+	setBatchRunning(true)
+	go func() {
+		defer func() {
+			setBatchRunning(false)
+			batchMutex.Unlock()
+		}()
+		if len(ids) > 0 {
+			_ = runSelectedModels(ids)
+			return
+		}
+		_ = runAllModels(channelID)
 	}()
+	return nil
+}
 
+func runAllModels(channelID uint) error {
 	var channels []model.Channel
 	q := model.DB.Where("status != ?", model.ChannelStatusManuallyDisabled)
 	if channelID > 0 {
@@ -363,17 +437,7 @@ func TestAllModels(channelID uint) error {
 	return nil
 }
 
-func TestSelectedModels(ids []uint) error {
-	if !batchMutex.TryLock() {
-		return fmt.Errorf("batch test already in progress")
-	}
-	batchRunning = true
-	defer func() {
-		clearTaskList()
-		batchRunning = false
-		batchMutex.Unlock()
-	}()
-
+func runSelectedModels(ids []uint) error {
 	autoDisable := GetSettingBool("auto_disable_enabled")
 	autoEnable := GetSettingBool("auto_enable_enabled")
 	thresholdSec := GetSettingFloat("channel_disable_threshold_seconds")
@@ -447,15 +511,23 @@ func runTestsConcurrently(tasks []testTask, autoDisable, autoEnable bool, thresh
 					updateTaskStatus(it.index, "failed", result.ResponseMs, errMsg)
 				}
 
-				if autoDisable && t.ch.AutoBan && t.entry.Status == model.ChannelStatusEnabled {
+				if autoDisable && t.ch.AutoBan {
 					if shouldDisable, reason := shouldDisableModel(result, thresholdMs, keywords); shouldDisable {
-						UpdateModelStatus(t.entry.ID, model.ChannelStatusAutoDisabled)
-						log.Printf("[AUTO-DISABLE] model=%s channel=%s reason=%s", t.entry.ModelName, t.ch.Name, reason)
+						update := model.DB.Model(&model.ModelEntry{}).
+							Where("id = ? AND status = ?", t.entry.ID, model.ChannelStatusEnabled).
+							Update("status", model.ChannelStatusAutoDisabled)
+						if update.Error == nil && update.RowsAffected > 0 {
+							log.Printf("[AUTO-DISABLE] model=%s channel=%s reason=%s", t.entry.ModelName, t.ch.Name, reason)
+						}
 					}
 				}
-				if autoEnable && result.Success && t.entry.Status == model.ChannelStatusAutoDisabled {
-					UpdateModelStatus(t.entry.ID, model.ChannelStatusEnabled)
-					log.Printf("[AUTO-ENABLE] model=%s channel=%s", t.entry.ModelName, t.ch.Name)
+				if autoEnable && result.Success {
+					update := model.DB.Model(&model.ModelEntry{}).
+						Where("id = ? AND status = ?", t.entry.ID, model.ChannelStatusAutoDisabled).
+						Update("status", model.ChannelStatusEnabled)
+					if update.Error == nil && update.RowsAffected > 0 {
+						log.Printf("[AUTO-ENABLE] model=%s channel=%s", t.entry.ModelName, t.ch.Name)
+					}
 				}
 			}
 		}()

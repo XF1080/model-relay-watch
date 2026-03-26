@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { getTokenStats, getPricing, savePricing, deletePricing } from '../api/client';
+import { getTokenStats, getPricing, savePricing, deletePricing, detectTokenStatsSources } from '../api/client';
 
 /* --- Group config --- */
 const groupConfig: Record<string, { label: string; color: string; icon: string }> = {
@@ -321,8 +321,15 @@ export default function TokenStats() {
   const [error, setError] = useState('');
   const [hoverBar, setHoverBar] = useState<{ idx: number; el: HTMLDivElement } | null>(null);
   const [showPricing, setShowPricing] = useState(false);
+  const [sourceInfo, setSourceInfo] = useState<any>(null);
 
   const load = useCallback(() => {
+    if (range === 'custom' && (!customStart || !customEnd)) {
+      setData(null);
+      setError('');
+      setLoading(false);
+      return;
+    }
     setLoading(true); setError('');
     const start = range === 'custom' ? customStart : undefined;
     const end = range === 'custom' ? customEnd : undefined;
@@ -332,9 +339,11 @@ export default function TokenStats() {
       .finally(() => setLoading(false));
   }, [range, customStart, customEnd]);
   useEffect(() => {
-    if (range === 'custom' && !customStart) return; // wait for date selection
     load();
   }, [range, customStart, customEnd, load]);
+  useEffect(() => {
+    detectTokenStatsSources().then(setSourceInfo).catch(() => {});
+  }, []);
 
   const allGroups: any[] = data?.groups || [];
 
@@ -437,7 +446,43 @@ export default function TokenStats() {
         </div>
       </div>
 
-      {/* Group Tabs */}
+      {sourceInfo && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {[
+            { key: 'claude', label: 'Claude Code', found: sourceInfo.claude_found, note: '' },
+            { key: 'codex', label: 'Codex', found: sourceInfo.codex_found, note: '' },
+            { key: 'gemini', label: 'Gemini CLI', found: sourceInfo.gemini_found, note: '待接入解析' },
+          ].map(src => (
+            <div key={src.key} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+              border: `1px solid ${src.found ? '#d1fae5' : '#ececf1'}`,
+              background: src.found ? '#ecfdf5' : '#f8fafc',
+              color: src.found ? '#047857' : '#6b7280',
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: src.found ? '#10b981' : '#cbd5e1', display: 'inline-block',
+              }} />
+              <span>{src.label}</span>
+              {src.note && <span style={{ color: '#9ca3af', fontWeight: 500 }}>({src.note})</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {range === 'custom' && !customStart && !customEnd && !loading && (
+        <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fff', borderRadius: 14, border: '1px solid #ececf1', color: '#9ca3af', marginBottom: 16 }}>
+          请选择开始和结束日期
+        </div>
+      )}
+
+      {range === 'custom' && customStart && !customEnd && !loading && (
+        <div style={{ padding: '40px 20px', textAlign: 'center', background: '#fff', borderRadius: 14, border: '1px solid #ececf1', color: '#9ca3af', marginBottom: 16 }}>
+          请选择结束日期
+        </div>
+      )}
+
       {tabs.length > 1 && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
           {tabs.map(t => {

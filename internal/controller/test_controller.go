@@ -34,26 +34,18 @@ func TestSingleModel(c *gin.Context) {
 
 func TestChannel(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-	if service.IsBatchRunning() {
-		c.JSON(http.StatusConflict, gin.H{"error": "batch test already in progress"})
+	if err := service.StartChannelTest(uint(id)); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
-
-	go func() {
-		_ = service.TestAllModels(uint(id))
-	}()
 	c.JSON(http.StatusOK, gin.H{"message": "channel test started"})
 }
 
 func TestAll(c *gin.Context) {
-	if service.IsBatchRunning() {
-		c.JSON(http.StatusConflict, gin.H{"error": "batch test already in progress"})
+	if err := service.StartAllModelsTest(); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
-
-	go func() {
-		_ = service.TestAllModels(0)
-	}()
 	c.JSON(http.StatusOK, gin.H{"message": "testing all models started"})
 }
 
@@ -65,14 +57,10 @@ func TestBatch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供模型 ID 列表"})
 		return
 	}
-	if service.IsBatchRunning() {
-		c.JSON(http.StatusConflict, gin.H{"error": "batch test already in progress"})
+	if err := service.StartSelectedModelsTest(input.IDs); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
-
-	go func() {
-		_ = service.TestSelectedModels(input.IDs)
-	}()
 	c.JSON(http.StatusOK, gin.H{"message": "batch test started", "count": len(input.IDs)})
 }
 

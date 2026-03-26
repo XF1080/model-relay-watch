@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { listHistory, listChannels, getHistoryStats } from '../api/client';
+import { listHistory, listChannels } from '../api/client';
 import type { TestResult, Channel } from '../types';
 
 const S = {
@@ -34,11 +34,12 @@ export default function History() {
   const [channelFilter, setChannelFilter] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [successFilter, setSuccessFilter] = useState('');
-  const [stats, setStats] = useState<Array<{ model_name: string; total_tests: number; success_rate: number; avg_latency_ms: number }>>([]);
 
   const PAGE_SIZE = 30;
 
-  useEffect(() => { listChannels().then(setChannels); getHistoryStats().then(setStats); }, []);
+  useEffect(() => {
+    listChannels().then(setChannels);
+  }, []);
 
   const load = (p = page) => {
     setLoading(true);
@@ -52,7 +53,7 @@ export default function History() {
     }).catch(() => Toast.error('加载失败')).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(1); setPage(1); }, [channelFilter, successFilter]);
+  useEffect(() => { load(1); setPage(1); }, [channelFilter, successFilter, modelFilter]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -67,7 +68,7 @@ export default function History() {
           </div>
         </div>
         <button
-          onClick={() => load()}
+          onClick={() => load(page)}
           style={{
             height: 36, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
             cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -75,35 +76,6 @@ export default function History() {
           }}
         >↻ 刷新</button>
       </div>
-
-      {/* Stats overview */}
-      {stats.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
-          {stats.slice(0, 6).map(s => {
-            const rateColor = s.success_rate < 70 ? '#ef4444' : s.success_rate < 90 ? '#eab308' : '#22c55e';
-            return (
-              <div key={s.model_name} style={{
-                ...S.card, padding: '14px 18px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                position: 'relative', overflow: 'hidden',
-              }}>
-                <div style={{
-                  position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
-                  borderRadius: '3px 0 0 3px', background: rateColor,
-                }} />
-                <div style={{ paddingLeft: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#16192c', marginBottom: 2 }}>{s.model_name}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.total_tests} 次测试</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: rateColor }}>{s.success_rate.toFixed(1)}%</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{fmtMs(s.avg_latency_ms)}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* Filters */}
       <div style={{ ...S.card, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -148,7 +120,7 @@ export default function History() {
         {/* Table head */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '170px 110px 1fr 80px 80px 70px 1fr',
+          gridTemplateColumns: '170px minmax(160px, 220px) minmax(160px, 1fr) 80px 80px 70px minmax(220px, 1fr)',
           columnGap: 12, padding: '0 20px', height: 36, alignItems: 'center',
           fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.3px',
           textTransform: 'uppercase', background: '#fafafc', borderBottom: '1px solid #ececf1',
@@ -168,7 +140,7 @@ export default function History() {
               key={r.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '170px 110px 1fr 80px 80px 70px 1fr',
+                gridTemplateColumns: '170px minmax(160px, 220px) minmax(160px, 1fr) 80px 80px 70px minmax(220px, 1fr)',
                 columnGap: 12, padding: '0 20px', minHeight: 44, alignItems: 'center',
                 fontSize: 12, color: '#16192c',
                 background: idx % 2 === 0 ? '#fff' : '#fafafc',
@@ -178,7 +150,7 @@ export default function History() {
               onMouseLeave={e => { e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#fafafc'; }}
             >
               <div style={{ color: '#5a6078', fontSize: 11 }}>{new Date(r.tested_at).toLocaleString()}</div>
-              <div style={{ color: '#5a6078', fontWeight: 500 }}>{r.channel_name}</div>
+              <div style={{ color: '#5a6078', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.channel_name}>{r.channel_name}</div>
               <div style={{ fontWeight: 600, color: '#16192c' }}>{r.model_name}</div>
               <div>
                 <span style={{

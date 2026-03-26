@@ -28,6 +28,7 @@ func InitDB(dbPath string) {
 	}
 
 	backfillToolSource()
+	backfillChannelSource()
 }
 
 func SeedDefaults(channelName, channelURL, channelKey string) {
@@ -42,6 +43,7 @@ func SeedDefaults(channelName, channelURL, channelKey string) {
 	if count == 0 && channelURL != "" {
 		ch := Channel{
 			Name:    channelName,
+			Source:  ChannelSourceManual,
 			BaseURL: channelURL,
 			APIKey:  channelKey,
 			Status:  ChannelStatusEnabled,
@@ -50,6 +52,16 @@ func SeedDefaults(channelName, channelURL, channelKey string) {
 		DB.Create(&ch)
 		log.Printf("created default channel: %s (%s)", channelName, channelURL)
 	}
+}
+
+func backfillChannelSource() {
+	DB.Model(&Channel{}).
+		Where("tool_source != '' AND tool_source IS NOT NULL AND source != ?", ChannelSourceCCS).
+		Update("source", ChannelSourceCCS)
+
+	DB.Model(&Channel{}).
+		Where("(source = '' OR source IS NULL) AND (tool_source = '' OR tool_source IS NULL)").
+		Update("source", ChannelSourceManual)
 }
 
 // SeedOfficialPricing inserts official pricing entries that don't exist yet.

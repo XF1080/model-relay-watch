@@ -76,6 +76,58 @@ type TokenStatsResponse struct {
 	Timeline []TokenStatsTimeline `json:"timeline"`
 }
 
+type TokenStatsSourceDetectResponse struct {
+	ClaudeFound bool   `json:"claude_found"`
+	ClaudePath  string `json:"claude_path,omitempty"`
+	CodexFound  bool   `json:"codex_found"`
+	CodexPath   string `json:"codex_path,omitempty"`
+	GeminiFound bool   `json:"gemini_found"`
+	GeminiPath  string `json:"gemini_path,omitempty"`
+}
+
+func resolveUsageDir(configuredPath, childName string, candidates []string) string {
+	configuredPath = strings.TrimSpace(configuredPath)
+	if configuredPath != "" {
+		if fi, err := os.Stat(configuredPath); err == nil && fi.IsDir() {
+			return configuredPath
+		}
+		if childName != "" {
+			childPath := filepath.Join(configuredPath, childName)
+			if fi, err := os.Stat(childPath); err == nil && fi.IsDir() {
+				return childPath
+			}
+		}
+		return ""
+	}
+
+	for _, candidate := range candidates {
+		if fi, err := os.Stat(candidate); err == nil && fi.IsDir() {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func DetectTokenStatsSources() (*TokenStatsSourceDetectResponse, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("鏃犳硶鑾峰彇鐢ㄦ埛鐩綍: %w", err)
+	}
+
+	claudePath := autoDetectUsageDir(home, "projects")
+	codexPath := autoDetectUsageDir(home, "sessions")
+	geminiPath := autoDetectUsageDir(home, "gemini")
+
+	return &TokenStatsSourceDetectResponse{
+		ClaudeFound: claudePath != "",
+		ClaudePath:  claudePath,
+		CodexFound:  codexPath != "",
+		CodexPath:   codexPath,
+		GeminiFound: geminiPath != "",
+		GeminiPath:  geminiPath,
+	}, nil
+}
+
 // Official model pricing from provider websites ($/million tokens)
 // [input, output, cache_read_ratio, cache_write_ratio]
 // cache_read_ratio: multiplier on input price for cached reads (e.g. 0.1 = 10% of input)
@@ -376,6 +428,23 @@ func sortModels(models []TokenStatsModel) {
 	})
 }
 
+func autoDetectUsageDir(home, childName string) string {
+	switch childName {
+	case "projects":
+		return resolveUsageDir("", childName, []string{filepath.Join(home, ".claude", "projects")})
+	case "sessions":
+		return resolveUsageDir("", childName, []string{filepath.Join(home, ".codex", "sessions")})
+	case "gemini":
+		return resolveUsageDir("", childName, []string{
+			filepath.Join(home, ".gemini", "antigravity", "conversations"),
+			filepath.Join(home, ".gemini", "sessions"),
+			filepath.Join(home, ".gemini", "projects"),
+		})
+	default:
+		return ""
+	}
+}
+
 func GetClaudeTokenStats(timeRange string, startStr, endStr string) (*TokenStatsResponse, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -425,8 +494,8 @@ func GetClaudeTokenStats(timeRange string, startStr, endStr string) (*TokenStats
 	// Collect records from both tools
 	var records []usageRecord
 
-	// 1) Claude Code: ~/.claude/projects/**/*.jsonl
-	claudeDir := filepath.Join(home, ".claude", "projects")
+	// 1) Claude Code session logs
+	claudeDir := resolveUsageDir(GetSetting("usage_claude_path"), "projects", []string{filepath.Join(home, ".claude", "projects")})
 	if info, err := os.Stat(claudeDir); err == nil && info.IsDir() {
 		filepath.Walk(claudeDir, func(path string, fi os.FileInfo, err error) error {
 			if err != nil || fi.IsDir() || !strings.HasSuffix(path, ".jsonl") {
@@ -441,8 +510,8 @@ func GetClaudeTokenStats(timeRange string, startStr, endStr string) (*TokenStats
 		})
 	}
 
-	// 2) Codex: ~/.codex/sessions/**/*.jsonl
-	codexDir := filepath.Join(home, ".codex", "sessions")
+	// 2) Codex session logs
+	codexDir := resolveUsageDir(GetSetting("usage_codex_path"), "sessions", []string{filepath.Join(home, ".codex", "sessions")})
 	if info, err := os.Stat(codexDir); err == nil && info.IsDir() {
 		filepath.Walk(codexDir, func(path string, fi os.FileInfo, err error) error {
 			if err != nil || fi.IsDir() || !strings.HasSuffix(path, ".jsonl") {
