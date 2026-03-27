@@ -1,0 +1,154 @@
+import React from 'react';
+import PropTypes from 'prop-types';
+import BaseComponent, { BaseProps } from '../_base/baseComponent';
+import { resolveDOM, getRef } from '../_utils/reactRender';
+
+/** A parallel type to `ResizeObserverEntry` (from resize-observer-polyfill). */
+export interface ResizeEntry {
+    contentRect: DOMRectReadOnly;
+    target: Element
+}
+
+export interface ReactResizeObserverProps extends BaseProps {
+    onResize?: (entries: ResizeEntry[]) => void;
+    observeParent?: boolean;
+    observerProperty?: ObserverProperty;
+    delayTick?: number
+}
+
+
+export enum ObserverProperty {
+    Width='width',
+    Height = "height",
+    All = "all"
+}
+export default class ReactResizeObserver extends BaseComponent<ReactResizeObserverProps> {
+    static propTypes = {
+        onResize: PropTypes.func,
+        observeParent: PropTypes.bool,
+        observerProperty: PropTypes.string,
+        delayTick: PropTypes.number
+    };
+
+    static defaultProps = {
+        onResize: () => {}, // eslint-disable-line
+        observeParent: false,
+        observerProperty: "all",
+        delayTick: 0
+    };
+    observer: ResizeObserver;
+    childNode: any;
+    element: Element;
+    _parentNode: HTMLElement;
+
+    formerPropertyValue: Map<Element, number> = new Map()
+
+
+    constructor(props: ReactResizeObserverProps) {
+        super(props);
+        if (globalThis['ResizeObserver']) {
+            this.observer = new ResizeObserver(this.handleResizeEventTriggered);
+        }
+    }
+
+    componentDidMount() {
+        this.observeElement?.();
+    }
+
+    componentDidUpdate(prevProps: ReactResizeObserverProps) {
+        this.observeElement?.(this.props.observeParent !== prevProps.observeParent);
+    }
+
+    componentWillUnmount() {
+        if (this.observer) {
+            this.observer.disconnect();
+            this.observer = null;
+            this.element = null;
+        }
+    }
+
+    getElement = () => {
+        try {
+            const node = this.childNode || this;
+            return resolveDOM(node) || (node instanceof Element ? node : null);
+        } catch (error) {
+            return null;
+        }
+    };
+
+
+    handleResizeEventTriggered = (entries: ResizeEntry[]) => {
+        if (this.props.observerProperty === ObserverProperty.All) {
+            this.props.onResize?.(entries);
+        } else {
+            const finalEntries: ResizeEntry[] = [];
+            for (const entry of entries) {
+                if (this.formerPropertyValue.has(entry.target)) {
+                    if (entry.contentRect[this.props.observerProperty] !== this.formerPropertyValue.get(entry.target)) {
+                        this.formerPropertyValue.set(entry.target, entry.contentRect[this.props.observerProperty]);
+                        finalEntries.push(entry);
+                    }
+                } else {
+                    this.formerPropertyValue.set(entry.target, entry.contentRect[this.props.observerProperty]);
+                    finalEntries.push(entry);
+                }
+            }
+            if (finalEntries.length > 0) {
+                this.props.onResize?.(finalEntries);
+            }
+        }
+    }
+
+    observeElement = (force = false) => {
+        const element = this.getElement();
+        if (!this.observer) {
+            this.observer = new ResizeObserver(this.handleResizeEventTriggered);
+        }
+        if (!(element && element instanceof Element)) {
+            // stop everything if not defined
+            this.observer.disconnect();
+            return;
+        }
+
+        if (element === this.element && !force) {
+            // abort if given same element -- nothing to update (unless forced)
+            return;
+        } else {
+            // clear observer list if new element
+            this.observer.disconnect();
+            // remember element reference for next time
+            this.element = element;
+        }
+
+        // observer callback is invoked immediately when observing new elements
+        this.observer.observe(element);
+
+        if (
+            this.props.observeParent &&
+            element.parentNode &&
+            element.parentNode.ownerDocument &&
+            element.parentNode.ownerDocument.defaultView &&
+            element.parentNode instanceof element.parentNode.ownerDocument.defaultView.HTMLElement
+        ) {
+            this._parentNode = element.parentNode;
+            this.observer.observe(this._parentNode);
+        }
+    }
+
+    mergeRef = (ref: any, node: HTMLDivElement) => {
+        this.childNode = node;
+        if (typeof ref === 'function') {
+            ref(node);
+        } else if (typeof ref === 'object' && ref && 'current' in ref) {
+            ref.current = node;
+        }
+    };
+
+    render() {
+        const child = React.Children.only(this.props.children);
+        const ref = getRef(child);
+        return React.cloneElement(child as React.ReactElement<any>, {
+            ref: (node: HTMLDivElement) => this.mergeRef(ref, node),
+        });
+    }
+}

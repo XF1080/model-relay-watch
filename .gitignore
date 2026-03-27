@@ -1,0 +1,16 @@
+# Build artifacts
+/dist/
+*.exe
+/model-relay-watch
+
+# Runtime data
+/data/
+*.db
+
+# Claude / local tooling
+.claude/
+.history/
+AGENTS.md
+
+# Temporary helper scripts
+fix_encoding.go

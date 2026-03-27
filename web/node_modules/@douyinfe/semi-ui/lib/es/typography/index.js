@@ -1,0 +1,12 @@
+import BaseTypography from './typography';
+import Text from './text';
+import Title from './title';
+import Paragraph from './paragraph';
+import Numeral from './numeral';
+const Typography = BaseTypography;
+Typography.Text = Text;
+Typography.Title = Title;
+Typography.Paragraph = Paragraph;
+Typography.Numeral = Numeral;
+export * from './interface';
+export default Typography;

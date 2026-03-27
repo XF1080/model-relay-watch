@@ -1,0 +1,11 @@
+import BaseFoundation from '../base/foundation';
+export default class BreadcrumbItemFoundation extends BaseFoundation {
+  constructor(adapter) {
+    super(Object.assign({}, adapter));
+  }
+  handleClick(item, e) {
+    // Trigger its own onClick first, then trigger the parent
+    this._adapter.notifyClick(item, e);
+    this._adapter.notifyParent(item, e);
+  }
+}

@@ -1,0 +1,31 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+var React = _interopRequireWildcard(require("react"));
+var _Icon = require("../components/Icon");
+function _getRequireWildcardCache(e) { if ("function" != typeof WeakMap) return null; var r = new WeakMap(), t = new WeakMap(); return (_getRequireWildcardCache = function (e) { return e ? t : r; })(e); }
+function _interopRequireWildcard(e, r) { if (!r && e && e.__esModule) return e; if (null === e || "object" != typeof e && "function" != typeof e) return { default: e }; var t = _getRequireWildcardCache(r); if (t && t.has(e)) return t.get(e); var n = { __proto__: null }, a = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var u in e) if ("default" !== u && {}.hasOwnProperty.call(e, u)) { var i = a ? Object.getOwnPropertyDescriptor(e, u) : null; i && (i.get || i.set) ? Object.defineProperty(n, u, i) : n[u] = e[u]; } return n.default = e, t && t.set(e, n), n; }
+function SvgComponent(props) {
+  return /*#__PURE__*/React.createElement("svg", Object.assign({
+    viewBox: "0 0 24 24",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "1em",
+    height: "1em",
+    focusable: false,
+    "aria-hidden": true
+  }, props), /*#__PURE__*/React.createElement("path", {
+    fillRule: "evenodd",
+    clipRule: "evenodd",
+    d: "M3.5 2.5C4.33 2.5 5 3.17 5 4v6.5h6V4a1.5 1.5 0 0 1 3 0v16a1.5 1.5 0 0 1-3 0v-6.5H5V20a1.5 1.5 0 0 1-3 0V4c0-.83.67-1.5 1.5-1.5Z",
+    fill: "currentColor"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M15.47 19.87c0 .67.5 1.13 1.26 1.13h4.77c.8 0 1.28-.41 1.28-1.1 0-.7-.5-1.11-1.28-1.11h-2.3v-.11l1.62-1.44c1.09-.96 1.62-1.92 1.62-2.93 0-1.6-1.48-2.8-3.47-2.8-1.91 0-3.52 1.18-3.52 2.51 0 .6.47 1.05 1.12 1.05.46 0 .76-.18 1.18-.7.36-.45.66-.62 1.07-.62.53 0 .9.35.9.85 0 .45-.32.89-1.03 1.56l-2.09 1.97c-.84.79-1.13 1.24-1.13 1.74Z",
+    fill: "currentColor"
+  }));
+}
+const IconComponent = (0, _Icon.convertIcon)(SvgComponent, 'h2');
+var _default = exports.default = IconComponent;

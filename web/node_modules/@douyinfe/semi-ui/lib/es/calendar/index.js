@@ -1,0 +1,69 @@
+var __rest = this && this.__rest || function (s, e) {
+  var t = {};
+  for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0) t[p] = s[p];
+  if (s != null && typeof Object.getOwnPropertySymbols === "function") for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+    if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i])) t[p[i]] = s[p[i]];
+  }
+  return t;
+};
+import React from 'react';
+import PropTypes from 'prop-types';
+import BaseComponent from '../_base/baseComponent';
+import DayCalendar from './dayCalendar';
+import WeekCalendar from './weekCalendar';
+import MonthCalendar from './monthCalendar';
+import RangeCalendar from './rangeCalendar';
+import '@douyinfe/semi-foundation/lib/es/calendar/calendar.css';
+export * from './interface';
+// eslint-disable-next-line @typescript-eslint/ban-types
+class Calendar extends BaseComponent {
+  render() {
+    const _a = this.props,
+      {
+        mode
+      } = _a,
+      rest = __rest(_a, ["mode"]);
+    const component = {
+      month: (/*#__PURE__*/React.createElement(MonthCalendar, null)),
+      week: (/*#__PURE__*/React.createElement(WeekCalendar, null)),
+      day: (/*#__PURE__*/React.createElement(DayCalendar, null)),
+      range: (/*#__PURE__*/React.createElement(RangeCalendar, null))
+    };
+    return /*#__PURE__*/React.cloneElement(component[mode], Object.assign({}, rest));
+  }
+}
+Calendar.propTypes = {
+  displayValue: PropTypes.instanceOf(Date),
+  header: PropTypes.node,
+  events: PropTypes.arrayOf(PropTypes.shape({
+    allDay: PropTypes.bool,
+    start: PropTypes.instanceOf(Date),
+    end: PropTypes.instanceOf(Date),
+    key: PropTypes.string.isRequired,
+    children: PropTypes.node
+  })),
+  mode: PropTypes.string,
+  showCurrTime: PropTypes.bool,
+  weekStartsOn: PropTypes.number,
+  scrollTop: PropTypes.number,
+  onClick: PropTypes.func,
+  renderTimeDisplay: PropTypes.func,
+  renderDateDisplay: PropTypes.func,
+  markWeekend: PropTypes.bool,
+  minEventHeight: PropTypes.number,
+  width: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  height: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  style: PropTypes.object,
+  className: PropTypes.string
+};
+Calendar.defaultProps = {
+  events: [],
+  displayValue: new Date(),
+  showCurrTime: true,
+  mode: 'week',
+  markWeekend: false,
+  height: 600,
+  scrollTop: 400,
+  weekStartsOn: 0
+};
+export default Calendar;

@@ -1,0 +1,12 @@
+declare const cssClasses: {
+    PREFIX: string;
+    PREFIX_OPTION: string;
+    PREFIX_GROUP: string;
+};
+declare const strings: {
+    readonly SIZE: readonly ["small", "large", "default"];
+    readonly POSITION: readonly ["top", "topLeft", "topRight", "left", "leftTop", "leftBottom", "right", "rightTop", "rightBottom", "bottom", "bottomLeft", "bottomRight", "leftTopOver", "rightTopOver", "leftBottomOver", "rightBottomOver"];
+    readonly OPTIONS: readonly ["children", "value"];
+    readonly STATUS: readonly ["default", "error", "warning", "success"];
+};
+export { cssClasses, strings };

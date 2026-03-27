@@ -1,0 +1,67 @@
+import React, { CSSProperties } from 'react';
+import BaseComponent from '../_base/baseComponent';
+import PropTypes from 'prop-types';
+import { ContextValue } from '../configProvider/context';
+import { SideSheetAdapter, SideSheetProps, SideSheetState } from '@douyinfe/semi-foundation/lib/es/sideSheet/sideSheetFoundation';
+import '@douyinfe/semi-foundation/lib/es/sideSheet/sideSheet.css';
+export type { SideSheetContentProps } from './SideSheetContent';
+export interface SideSheetReactProps extends SideSheetProps {
+    bodyStyle?: CSSProperties;
+    headerStyle?: CSSProperties;
+    maskStyle?: CSSProperties;
+    style?: CSSProperties;
+    title?: React.ReactNode;
+    footer?: React.ReactNode;
+    children?: React.ReactNode;
+    onCancel?: (e: React.MouseEvent | React.KeyboardEvent) => void;
+    canVerticalSetWidth?: boolean;
+}
+export type { SideSheetState };
+export default class SideSheet extends BaseComponent<SideSheetReactProps, SideSheetState> {
+    static contextType: React.Context<ContextValue>;
+    static propTypes: {
+        bodyStyle: PropTypes.Requireable<object>;
+        headerStyle: PropTypes.Requireable<object>;
+        children: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        className: PropTypes.Requireable<string>;
+        closable: PropTypes.Requireable<boolean>;
+        disableScroll: PropTypes.Requireable<boolean>;
+        getPopupContainer: PropTypes.Requireable<(...args: any[]) => any>;
+        height: PropTypes.Requireable<NonNullable<string | number>>;
+        mask: PropTypes.Requireable<boolean>;
+        maskClosable: PropTypes.Requireable<boolean>;
+        maskStyle: PropTypes.Requireable<object>;
+        motion: PropTypes.Requireable<NonNullable<boolean | object>>;
+        onCancel: PropTypes.Requireable<(...args: any[]) => any>;
+        placement: PropTypes.Requireable<string>;
+        size: PropTypes.Requireable<string>;
+        style: PropTypes.Requireable<object>;
+        title: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        visible: PropTypes.Requireable<boolean>;
+        width: PropTypes.Requireable<NonNullable<string | number>>;
+        zIndex: PropTypes.Requireable<number>;
+        afterVisibleChange: PropTypes.Requireable<(...args: any[]) => any>;
+        closeOnEsc: PropTypes.Requireable<boolean>;
+        footer: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        keepDOM: PropTypes.Requireable<boolean>;
+        'aria-label': PropTypes.Requireable<string>;
+    };
+    static __SemiComponentName__: string;
+    static defaultProps: SideSheetReactProps;
+    private _active;
+    constructor(props: SideSheetReactProps);
+    context: ContextValue;
+    private bodyOverflow;
+    private scrollBarWidth;
+    private originBodyWidth;
+    get adapter(): SideSheetAdapter;
+    static getDerivedStateFromProps(props: SideSheetReactProps, prevState: SideSheetState): Partial<SideSheetState>;
+    componentDidMount(): void;
+    componentDidUpdate(prevProps: SideSheetReactProps, prevState: SideSheetState, snapshot: any): void;
+    componentWillUnmount(): void;
+    handleCancel: (e: React.MouseEvent) => void;
+    handleKeyDown: (e: KeyboardEvent) => void;
+    updateState: () => void;
+    renderContent(): React.JSX.Element;
+    render(): React.JSX.Element;
+}

@@ -1,0 +1,54 @@
+import BaseFoundation from '../base/foundation';
+// import { cssClasses, strings } from './constants';
+import getMonthTable from './_utils/getMonthTable';
+import getDayOfWeek from './_utils/getDayOfWeek';
+import { format } from 'date-fns';
+import isNullOrUndefined from '../utils/isNullOrUndefined';
+export default class CalendarMonthFoundation extends BaseFoundation {
+  constructor(adapter) {
+    super(Object.assign({}, adapter));
+  }
+  init() {
+    this._getToday();
+    this.getMonthTable();
+  }
+  _getToday() {
+    const today = new Date();
+    const todayText = format(today, 'yyyy-MM-dd');
+    this._adapter.updateToday(todayText);
+  }
+  getMonthTable() {
+    const month = this._adapter.getProp('month');
+    const weeksRowNum = this.getState('weeksRowNum');
+    if (month) {
+      this.updateWeekDays();
+      const weekStartsOn = this._adapter.getProp('weekStartsOn');
+      const monthTable = getMonthTable(month, weekStartsOn);
+      const {
+        weeks
+      } = monthTable;
+      this._adapter.updateMonthTable(monthTable);
+      if (isNullOrUndefined(weeksRowNum)) {
+        this._adapter.setWeeksRowNum(weeks.length);
+      } else if (Array.isArray(weeks) && weeks.length !== weeksRowNum) {
+        this._adapter.setWeeksRowNum(weeks.length, () => {
+          this._adapter.notifyWeeksRowNumChange(weeks.length);
+        });
+      }
+    }
+  }
+  updateWeekDays() {
+    const weekStartsOn = this._adapter.getProp('weekStartsOn');
+    const weekdays = getDayOfWeek({
+      weekStartsOn
+    });
+    this._adapter.setWeekDays(weekdays);
+  }
+  destroy() {}
+  handleClick(day) {
+    this._adapter.notifyDayClick(day);
+  }
+  handleHover(day) {
+    this._adapter.notifyDayHover(day);
+  }
+}

@@ -1,0 +1,100 @@
+import React, { PureComponent, ReactNode } from 'react';
+import PropTypes from 'prop-types';
+import { ContextValue } from '../configProvider/context';
+import { CheckboxEvent } from '../checkbox';
+import { BasicCascaderData, BasicEntity, ShowNextType, BasicData, Virtualize } from '@douyinfe/semi-foundation/lib/cjs/cascader/foundation';
+export interface CascaderData extends BasicCascaderData {
+    label: React.ReactNode;
+}
+export interface Entity extends BasicEntity {
+    children?: Array<Entity>;
+    data: CascaderData;
+    parent?: Entity;
+}
+export interface Entities {
+    [idx: string]: Entity;
+}
+export interface Data extends BasicData {
+    data: CascaderData;
+    searchText: React.ReactNode[];
+}
+export interface FilterRenderProps {
+    className: string;
+    inputValue: string;
+    disabled: boolean;
+    data: CascaderData[];
+    checkStatus: {
+        checked: boolean;
+        halfChecked: boolean;
+    };
+    selected: boolean;
+    onClick: (e: React.MouseEvent) => void;
+    onCheck: (e: React.MouseEvent) => void;
+}
+export interface CascaderItemProps {
+    activeKeys: Set<string>;
+    selectedKeys: Set<string>;
+    loadedKeys: Set<string>;
+    loadingKeys: Set<string>;
+    onItemClick: (e: React.MouseEvent | React.KeyboardEvent, item: Entity | Data) => void;
+    onItemHover: (e: React.MouseEvent, item: Entity) => void;
+    showNext: ShowNextType;
+    onItemCheckboxClick: (item: Entity | Data) => void;
+    onListScroll: (e: React.UIEvent<HTMLUListElement, UIEvent>, ind: number) => void;
+    searchable: boolean;
+    keyword: string;
+    empty: boolean;
+    emptyContent: React.ReactNode;
+    loadData: (selectOptions: CascaderData[]) => Promise<void>;
+    data: Array<Data | Entity>;
+    separator: string;
+    multiple: boolean;
+    checkedKeys: Set<string>;
+    halfCheckedKeys: Set<string>;
+    filterRender?: (props: FilterRenderProps) => ReactNode;
+    virtualize?: Virtualize;
+    expandIcon?: ReactNode;
+}
+export default class Item extends PureComponent<CascaderItemProps> {
+    static contextType: React.Context<ContextValue>;
+    static propTypes: {
+        data: PropTypes.Requireable<any[]>;
+        emptyContent: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        searchable: PropTypes.Requireable<boolean>;
+        onItemClick: PropTypes.Requireable<(...args: any[]) => any>;
+        onItemHover: PropTypes.Requireable<(...args: any[]) => any>;
+        multiple: PropTypes.Requireable<boolean>;
+        showNext: PropTypes.Requireable<"hover" | "click">;
+        checkedKeys: PropTypes.Requireable<object>;
+        halfCheckedKeys: PropTypes.Requireable<object>;
+        onItemCheckboxClick: PropTypes.Requireable<(...args: any[]) => any>;
+        separator: PropTypes.Requireable<string>;
+        keyword: PropTypes.Requireable<string>;
+        virtualize: PropTypes.Requireable<object>;
+        expandIcon: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+    };
+    static defaultProps: {
+        empty: boolean;
+    };
+    context: ContextValue;
+    onClick: (e: React.MouseEvent | React.KeyboardEvent, item: Entity | Data) => void;
+    /**
+     * A11y: simulate item click
+     */
+    handleItemEnterPress: (keyboardEvent: React.KeyboardEvent, item: Entity | Data) => void;
+    onHover: (e: React.MouseEvent, item: Entity) => void;
+    onCheckboxChange: (e: CheckboxEvent, item: Entity | Data) => void;
+    getItemStatus: (key: string) => {
+        active: boolean;
+        selected: boolean;
+        loading: boolean;
+    };
+    renderIcon: (type: string, haveMarginLeft?: boolean) => string | number | true | Iterable<React.ReactNode> | React.JSX.Element;
+    highlight: (searchText: React.ReactNode[]) => React.ReactNode[];
+    renderFlattenOptionItem: (data: Data, index?: number, style?: any) => React.JSX.Element;
+    renderFlattenOption: (data: Data[]) => React.JSX.Element;
+    renderVirtualizeList: (visibleOptions: any) => React.JSX.Element;
+    renderItem(renderData: Array<Entity>, content?: Array<React.ReactNode>): React.ReactNode[];
+    renderEmpty(): React.JSX.Element;
+    render(): React.JSX.Element;
+}

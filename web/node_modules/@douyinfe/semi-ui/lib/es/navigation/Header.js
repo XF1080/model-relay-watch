@@ -1,0 +1,63 @@
+import React, { PureComponent } from 'react';
+import PropTypes from 'prop-types';
+import cls from 'classnames';
+import isNullOrUndefined from '@douyinfe/semi-foundation/lib/es/utils/isNullOrUndefined';
+import { cssClasses } from '@douyinfe/semi-foundation/lib/es/navigation/constants';
+import '@douyinfe/semi-foundation/lib/es/navigation/navigation.css';
+import NavContext from './nav-context';
+export default class NavHeader extends PureComponent {
+  renderLogo(logo) {
+    if (/*#__PURE__*/React.isValidElement(logo)) {
+      return logo;
+    }
+    return null;
+  }
+  render() {
+    const {
+      children,
+      style,
+      className,
+      logo,
+      text,
+      link,
+      linkOptions,
+      prefixCls
+    } = this.props;
+    const {
+      isCollapsed
+    } = this.context;
+    const wrapCls = cls(className, `${cssClasses.PREFIX}-header`, {
+      [`${cssClasses.PREFIX}-header-collapsed`]: isCollapsed
+    });
+    let wrappedChildren = /*#__PURE__*/React.createElement(React.Fragment, null, logo ? /*#__PURE__*/React.createElement("i", {
+      className: `${cssClasses.PREFIX}-header-logo`
+    }, this.renderLogo(logo)) : null, !isNullOrUndefined(text) && !isCollapsed ? (/*#__PURE__*/React.createElement("span", {
+      className: `${cssClasses.PREFIX}-header-text`
+    }, text)) : null, children);
+    if (typeof link === 'string') {
+      wrappedChildren = /*#__PURE__*/React.createElement("a", Object.assign({
+        className: `${prefixCls}-header-link`,
+        href: link
+      }, linkOptions), wrappedChildren);
+    }
+    return /*#__PURE__*/React.createElement("div", {
+      className: wrapCls,
+      style: style
+    }, wrappedChildren);
+  }
+}
+NavHeader.contextType = NavContext;
+NavHeader.propTypes = {
+  prefixCls: PropTypes.string,
+  logo: PropTypes.oneOfType([PropTypes.string, PropTypes.object, PropTypes.node]),
+  text: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+  children: PropTypes.node,
+  style: PropTypes.object,
+  className: PropTypes.string,
+  link: PropTypes.string,
+  linkOptions: PropTypes.object
+};
+NavHeader.defaultProps = {
+  prefixCls: cssClasses.PREFIX
+};
+NavHeader.elementType = "NavHeader";

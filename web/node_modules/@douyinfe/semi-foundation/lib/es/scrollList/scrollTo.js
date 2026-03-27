@@ -1,0 +1,22 @@
+import { Animation } from '@douyinfe/semi-animation';
+const scrollTo = (element, to, duration) => {
+  const animation = new Animation({
+    from: {
+      scrollTop: element.scrollTop
+    },
+    to: {
+      scrollTop: to
+    }
+  }, {
+    duration
+  });
+  animation.on('frame', _ref => {
+    let {
+      scrollTop
+    } = _ref;
+    element.scrollTop = scrollTop;
+  });
+  // animation.start();
+  return animation;
+};
+export default scrollTo;

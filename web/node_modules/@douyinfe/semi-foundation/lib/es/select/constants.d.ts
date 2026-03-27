@@ -1,0 +1,18 @@
+declare const cssClasses: {
+    PREFIX: string;
+    PREFIX_OPTION: string;
+    PREFIX_GROUP: string;
+};
+declare const strings: {
+    readonly SIZE_SET: readonly ["small", "large", "default"];
+    readonly POSITION_SET: readonly ["top", "topLeft", "topRight", "left", "leftTop", "leftBottom", "right", "rightTop", "rightBottom", "bottom", "bottomLeft", "bottomRight", "leftTopOver", "rightTopOver", "leftBottomOver", "rightBottomOver"];
+    readonly MODE_SELECT: "select";
+    readonly MODE_AUTOCOMPLETE: "autoComplete";
+    readonly STATUS: readonly ["default", "error", "warning", "success"];
+    readonly SEARCH_POSITION_TRIGGER: "trigger";
+    readonly SEARCH_POSITION_DROPDOWN: "dropdown";
+};
+declare const numbers: {
+    LIST_HEIGHT: number;
+};
+export { cssClasses, strings, numbers };

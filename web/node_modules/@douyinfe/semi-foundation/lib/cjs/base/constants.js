@@ -1,0 +1,15 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+Object.defineProperty(exports, "BASE_CLASS_PREFIX", {
+  enumerable: true,
+  get: function () {
+    return _env.BASE_CLASS_PREFIX;
+  }
+});
+exports.VALIDATE_STATUS = void 0;
+var _env = require("./env");
+const VALIDATE_STATUS = exports.VALIDATE_STATUS = ['default', 'error', 'warning', 'success'];
+// const VALIDATE_STATUS = ['default', 'error', 'warning', 'success', 'validating'] as const;

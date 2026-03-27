@@ -1,0 +1,7 @@
+import BaseFoundation from '../base/foundation';
+export default class TableSelectionCellFoundation extends BaseFoundation {
+  handleChange(e) {
+    const value = e.target.checked;
+    this._adapter.notifyChange(value, e);
+  }
+}

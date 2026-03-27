@@ -1,0 +1,55 @@
+import BaseFoundation from "../base/foundation";
+class ColorChooseAreaFoundation extends BaseFoundation {
+  constructor(adapter) {
+    super(Object.assign({}, adapter));
+    this.getHandlePositionByHSVA = () => {
+      const {
+        hsva,
+        width,
+        height,
+        handleSize
+      } = this.getProps();
+      return this._adapter.getColorPickerFoundation().getHandlePositionByHSVA(hsva, {
+        width: width,
+        height: height
+      }, handleSize);
+    };
+    this.handleMouseDown = e => {
+      this._adapter.handleMouseDown(e);
+    };
+    this.handleMouseUp = e => {
+      this._adapter.handleMouseUp(e);
+    };
+    this.setHandlePositionByMousePosition = e => {
+      var _a;
+      const rect = (_a = this._adapter.getDOM()) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+      const mousePosition = {
+        x: e.clientX - rect.x,
+        y: e.clientY - rect.y
+      };
+      const {
+        width,
+        height,
+        handleSize
+      } = this.getProps();
+      const colorPickerFoundation = this._adapter.getColorPickerFoundation();
+      const handlePosition = colorPickerFoundation.getHandlePositionByMousePosition(mousePosition, {
+        width,
+        height
+      }, handleSize);
+      if (handlePosition) {
+        this.setState({
+          handlePosition
+        });
+        this._adapter.notifyChange({
+          s: Math.round(mousePosition.x / width * 100),
+          v: Math.round(100 - Math.min(Math.max(mousePosition.y / height, 0), 1) * 100)
+        });
+      }
+    };
+  }
+}
+export default ColorChooseAreaFoundation;

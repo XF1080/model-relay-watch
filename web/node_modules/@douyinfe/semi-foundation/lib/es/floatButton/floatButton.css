@@ -1,0 +1,120 @@
+/* shadow */
+/* sizing */
+/* spacing */
+.semi-floatButton {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  cursor: pointer;
+}
+.semi-floatButton-body {
+  background-color: var(--semi-color-fill-0);
+  box-shadow: var(--semi-shadow-elevated);
+  color: var(--semi-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.semi-floatButton-body:hover {
+  background-color: var(--semi-color-fill-1);
+}
+.semi-floatButton-body:active {
+  background-color: var(--semi-color-fill-2);
+}
+.semi-floatButton-disabled {
+  background: var(--semi-color-disabled-bg);
+  color: var(--semi-color-disabled-text);
+  cursor: not-allowed;
+}
+.semi-floatButton-disabled:hover {
+  background-color: var(--semi-color-disabled-bg);
+}
+.semi-floatButton-colorful {
+  background: var(--semi-color-ai-general);
+  color: var(--semi-color-white);
+}
+.semi-floatButton-colorful:hover {
+  background: var(--semi-color-ai-general-hover);
+}
+.semi-floatButton-colorful:active {
+  background: var(--semi-color-ai-general-active);
+}
+.semi-floatButton.semi-floatButton-square .semi-badge-dot, .semi-floatButton.semi-floatButton-square .semi-badge-count {
+  /* Calculation logic:
+  The center of the badge is the intersection of two lines. 
+  - The first line is the connecting line between the center of the floatButton and the upper right corner of the enclosing rectangle. 
+  - The second line is the border of the floatButton.
+  Can be calculated through radius， (√2 - 1）/√2 * R = 0.29 * R
+  */
+  top: 2.32px;
+  inset-inline-end: 2.32px;
+}
+.semi-floatButton-default {
+  width: 32px;
+  height: 32px;
+}
+.semi-floatButton-default.semi-floatButton-round .semi-badge-dot, .semi-floatButton-default.semi-floatButton-round .semi-badge-count {
+  /* Calculation logic:
+  The center of the badge is the intersection of two lines. 
+  - The first line is the connecting line between the center of the floatButton and the upper right corner of the enclosing rectangle. 
+  - The second line is the border of the floatButton.
+  Can be calculated through radius (√2 - 1）/√2 * R = 0.29 * R，and R = 0.5 * width
+  */
+  top: 4.64px;
+  inset-inline-end: 4.64px;
+}
+.semi-floatButton-small {
+  width: 24px;
+  height: 24px;
+}
+.semi-floatButton-small.semi-floatButton-round .semi-badge-dot, .semi-floatButton-small.semi-floatButton-round .semi-badge-count {
+  top: 3.48px;
+  inset-inline-end: 3.48px;
+}
+.semi-floatButton-large {
+  width: 40px;
+  height: 40px;
+}
+.semi-floatButton-large.semi-floatButton-round .semi-badge-dot, .semi-floatButton-large.semi-floatButton-round .semi-badge-count {
+  top: 5.8px;
+  inset-inline-end: 5.8px;
+}
+.semi-floatButton-square {
+  border-radius: 8px;
+}
+.semi-floatButton-round {
+  border-radius: var(--semi-border-radius-full);
+}
+
+.semi-floatButtonGroup {
+  position: fixed;
+  border-radius: 8px;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  background: var(--semi-color-bg-0);
+  box-shadow: var(--semi-shadow-elevated);
+  display: inline-flex;
+  padding: 6px;
+  gap: 4px;
+}
+.semi-floatButtonGroup-item {
+  cursor: pointer;
+  display: flex;
+  padding: 6px 12px;
+  align-items: center;
+  column-gap: 8px;
+  border-radius: 4px;
+  color: var(--semi-color-text-0);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 20px;
+}
+.semi-floatButtonGroup-item:hover {
+  background: var(--semi-color-fill-1);
+}
+.semi-floatButtonGroup-item:active {
+  background: var(--semi-color-fill-2);
+}

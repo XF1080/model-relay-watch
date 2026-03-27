@@ -1,0 +1,48 @@
+import React, { PureComponent } from 'react';
+import PropTypes from 'prop-types';
+import { Theme, ButtonProps } from '../button/Button';
+import { IconSize } from '@douyinfe/semi-icons';
+import '@douyinfe/semi-foundation/lib/es/button/iconButton.css';
+export type HorizontalPaddingType = 'left' | 'right';
+export interface IconButtonProps extends ButtonProps {
+    icon?: React.ReactNode;
+    iconPosition?: 'left' | 'right';
+    iconSize?: IconSize;
+    iconStyle?: React.CSSProperties;
+    loading?: boolean;
+    theme?: Theme;
+    style?: React.CSSProperties;
+    className?: string;
+    disabled?: boolean;
+    noHorizontalPadding?: boolean | HorizontalPaddingType | HorizontalPaddingType[];
+    prefixCls?: string;
+    contentClassName?: string;
+}
+declare class IconButton extends PureComponent<IconButtonProps> {
+    static defaultProps: {
+        iconPosition: "left";
+        prefixCls: string;
+        loading: boolean;
+        noHorizontalPadding: boolean;
+        onMouseEnter: (...args: any[]) => void;
+        onMouseLeave: (...args: any[]) => void;
+    };
+    static elementType: string;
+    static propTypes: {
+        iconStyle: PropTypes.Requireable<object>;
+        style: PropTypes.Requireable<object>;
+        loading: PropTypes.Requireable<boolean>;
+        prefixCls: PropTypes.Requireable<string>;
+        icon: PropTypes.Requireable<NonNullable<object | PropTypes.ReactNodeLike>>;
+        iconSize: PropTypes.Requireable<string>;
+        noHorizontalPadding: PropTypes.Requireable<NonNullable<string | boolean | any[]>>;
+        children: PropTypes.Requireable<PropTypes.ReactNodeLike>;
+        theme: PropTypes.Requireable<string>;
+        iconPosition: PropTypes.Requireable<"left" | "right">;
+        className: PropTypes.Requireable<string>;
+        onMouseEnter: PropTypes.Requireable<(...args: any[]) => any>;
+        onMouseLeave: PropTypes.Requireable<(...args: any[]) => any>;
+    };
+    render(): React.JSX.Element;
+}
+export default IconButton;

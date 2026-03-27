@@ -1,0 +1,6 @@
+import Group from './radioGroup';
+import Radio from './radio';
+class RadioWithGroup extends Radio {}
+RadioWithGroup.Group = Group;
+export default RadioWithGroup;
+export { RadioWithGroup, Radio };

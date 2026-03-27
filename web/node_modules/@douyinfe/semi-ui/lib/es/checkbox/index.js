@@ -1,0 +1,6 @@
+import Checkbox from './checkbox';
+import Group from './checkboxGroup';
+class CheckboxWithGroup extends Checkbox {}
+CheckboxWithGroup.Group = Group;
+export { CheckboxWithGroup, Checkbox };
+export default CheckboxWithGroup;

@@ -1,0 +1,10 @@
+declare const getDefaultFormatToken: (type: string) => {
+    readonly date: "yyyy-MM-dd";
+    readonly dateTime: "yyyy-MM-dd HH:mm:ss";
+    readonly dateRange: "yyyy-MM-dd";
+    readonly dateTimeRange: "yyyy-MM-dd HH:mm:ss";
+    readonly month: "yyyy-MM";
+    readonly monthRange: "yyyy-MM";
+};
+export declare function getDefaultFormatTokenByType(type: string): any;
+export default getDefaultFormatToken;

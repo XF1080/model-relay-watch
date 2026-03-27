@@ -1,0 +1,163 @@
+import _noop from "lodash/noop";
+import _isFunction from "lodash/isFunction";
+var __rest = this && this.__rest || function (s, e) {
+  var t = {};
+  for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0) t[p] = s[p];
+  if (s != null && typeof Object.getOwnPropertySymbols === "function") for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+    if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i])) t[p[i]] = s[p[i]];
+  }
+  return t;
+};
+import React from 'react';
+import classNames from 'classnames';
+import PropTypes from 'prop-types';
+import ConfigContext from '../configProvider/context';
+import { cssClasses, strings, numbers } from '@douyinfe/semi-foundation/lib/es/popover/constants';
+import Tooltip from '../tooltip/index';
+import Arrow from './Arrow';
+import '@douyinfe/semi-foundation/lib/es/popover/popover.css';
+import isNullOrUndefined from '@douyinfe/semi-foundation/lib/es/utils/isNullOrUndefined';
+import { getDefaultPropsFromGlobalConfig } from "../_utils";
+const positionSet = strings.POSITION_SET;
+const triggerSet = strings.TRIGGER_SET;
+class Popover extends React.PureComponent {
+  constructor(props) {
+    super(props);
+    /**
+     * focus on tooltip trigger
+     */
+    this.focusTrigger = () => {
+      var _a;
+      (_a = this.tooltipRef.current) === null || _a === void 0 ? void 0 : _a.focusTrigger();
+    };
+    this.renderPopCard = _ref => {
+      let {
+        initialFocusRef
+      } = _ref;
+      const {
+        content,
+        contentClassName,
+        prefixCls
+      } = this.props;
+      const {
+        direction
+      } = this.context;
+      const popCardCls = classNames(prefixCls, contentClassName, {
+        [`${prefixCls}-rtl`]: direction === 'rtl'
+      });
+      const contentNode = this.renderContentNode({
+        initialFocusRef,
+        content
+      });
+      return /*#__PURE__*/React.createElement("div", {
+        className: popCardCls
+      }, /*#__PURE__*/React.createElement("div", {
+        className: `${prefixCls}-content`
+      }, contentNode));
+    };
+    this.renderContentNode = props => {
+      const {
+        initialFocusRef,
+        content
+      } = props;
+      const contentProps = {
+        initialFocusRef
+      };
+      return !_isFunction(content) ? content : content(contentProps);
+    };
+    this.tooltipRef = /*#__PURE__*/React.createRef();
+  }
+  render() {
+    const _a = this.props,
+      {
+        children,
+        prefixCls,
+        showArrow,
+        arrowStyle = {},
+        arrowBounding,
+        position,
+        style,
+        trigger
+      } = _a,
+      attr = __rest(_a, ["children", "prefixCls", "showArrow", "arrowStyle", "arrowBounding", "position", "style", "trigger"]);
+    let {
+      spacing
+    } = this.props;
+    const arrowProps = {
+      position,
+      className: '',
+      popStyle: style,
+      arrowStyle
+    };
+    const arrow = showArrow ? /*#__PURE__*/React.createElement(Arrow, Object.assign({}, arrowProps)) : false;
+    if (isNullOrUndefined(spacing)) {
+      spacing = showArrow ? numbers.SPACING_WITH_ARROW : numbers.SPACING;
+    }
+    const role = trigger === 'click' || trigger === 'custom' ? 'dialog' : 'tooltip';
+    return /*#__PURE__*/React.createElement(Tooltip, Object.assign({
+      guardFocus: true,
+      ref: this.tooltipRef
+    }, attr, {
+      trigger: trigger,
+      position: position,
+      style: style,
+      content: this.renderPopCard,
+      prefixCls: prefixCls,
+      spacing: spacing,
+      showArrow: arrow,
+      arrowBounding: arrowBounding,
+      role: role
+    }), children);
+  }
+}
+Popover.contextType = ConfigContext;
+Popover.propTypes = {
+  children: PropTypes.node,
+  content: PropTypes.oneOfType([PropTypes.node, PropTypes.func]),
+  visible: PropTypes.bool,
+  autoAdjustOverflow: PropTypes.bool,
+  motion: PropTypes.bool,
+  position: PropTypes.oneOf(positionSet),
+  // getPopupContainer: PropTypes.func,
+  margin: PropTypes.oneOfType([PropTypes.number, PropTypes.object]),
+  mouseEnterDelay: PropTypes.number,
+  mouseLeaveDelay: PropTypes.number,
+  trigger: PropTypes.oneOf(triggerSet).isRequired,
+  contentClassName: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
+  onVisibleChange: PropTypes.func,
+  onClickOutSide: PropTypes.func,
+  style: PropTypes.object,
+  spacing: PropTypes.oneOfType([PropTypes.number, PropTypes.object]),
+  zIndex: PropTypes.number,
+  showArrow: PropTypes.bool,
+  arrowStyle: PropTypes.shape({
+    borderColor: PropTypes.string,
+    backgroundColor: PropTypes.string,
+    borderOpacity: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+  }),
+  arrowPointAtCenter: PropTypes.bool,
+  arrowBounding: PropTypes.object,
+  prefixCls: PropTypes.string,
+  guardFocus: PropTypes.bool,
+  disableArrowKeyDown: PropTypes.bool
+};
+Popover.__SemiComponentName__ = "Popover";
+Popover.defaultProps = getDefaultPropsFromGlobalConfig(Popover.__SemiComponentName__, {
+  arrowBounding: numbers.ARROW_BOUNDING,
+  showArrow: false,
+  autoAdjustOverflow: true,
+  zIndex: numbers.DEFAULT_Z_INDEX,
+  motion: true,
+  trigger: 'hover',
+  cancelText: 'No',
+  okText: 'Yes',
+  position: 'bottom',
+  prefixCls: cssClasses.PREFIX,
+  onClickOutSide: _noop,
+  onEscKeyDown: _noop,
+  closeOnEsc: true,
+  returnFocusOnClose: true,
+  guardFocus: true,
+  disableFocusListener: true
+});
+export default Popover;

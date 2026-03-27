@@ -1,0 +1,21 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.cloneDeep = cloneDeep;
+var _isPlainObject2 = _interopRequireDefault(require("lodash/isPlainObject"));
+var _cloneDeepWith2 = _interopRequireDefault(require("lodash/cloneDeepWith"));
+var _react = _interopRequireDefault(require("react"));
+function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+function cloneDeep(treeNodeList) {
+  return (0, _cloneDeepWith2.default)(treeNodeList, val => {
+    // only clone treeNode inner data and skip user data
+    if ((0, _isPlainObject2.default)(val) && !val._innerDataTag) {
+      return val;
+    }
+    if (/*#__PURE__*/_react.default.isValidElement(val)) {
+      return val;
+    }
+  });
+}

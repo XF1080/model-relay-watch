@@ -1,0 +1,47 @@
+import React from 'react';
+import PropTypes from 'prop-types';
+import BaseComponent, { BaseProps } from '../_base/baseComponent';
+/** A parallel type to `ResizeObserverEntry` (from resize-observer-polyfill). */
+export interface ResizeEntry {
+    contentRect: DOMRectReadOnly;
+    target: Element;
+}
+export interface ReactResizeObserverProps extends BaseProps {
+    onResize?: (entries: ResizeEntry[]) => void;
+    observeParent?: boolean;
+    observerProperty?: ObserverProperty;
+    delayTick?: number;
+}
+export declare enum ObserverProperty {
+    Width = "width",
+    Height = "height",
+    All = "all"
+}
+export default class ReactResizeObserver extends BaseComponent<ReactResizeObserverProps> {
+    static propTypes: {
+        onResize: PropTypes.Requireable<(...args: any[]) => any>;
+        observeParent: PropTypes.Requireable<boolean>;
+        observerProperty: PropTypes.Requireable<string>;
+        delayTick: PropTypes.Requireable<number>;
+    };
+    static defaultProps: {
+        onResize: () => void;
+        observeParent: boolean;
+        observerProperty: string;
+        delayTick: number;
+    };
+    observer: ResizeObserver;
+    childNode: any;
+    element: Element;
+    _parentNode: HTMLElement;
+    formerPropertyValue: Map<Element, number>;
+    constructor(props: ReactResizeObserverProps);
+    componentDidMount(): void;
+    componentDidUpdate(prevProps: ReactResizeObserverProps): void;
+    componentWillUnmount(): void;
+    getElement: () => Element;
+    handleResizeEventTriggered: (entries: ResizeEntry[]) => void;
+    observeElement: (force?: boolean) => void;
+    mergeRef: (ref: any, node: HTMLDivElement) => void;
+    render(): React.ReactElement<any, string | React.JSXElementConstructor<any>>;
+}
